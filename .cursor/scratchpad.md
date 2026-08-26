@@ -371,7 +371,8 @@ flowchart TB
 - [x] **E0** Каркас + `config.h` (сборка — у пользователя)
 - [x] **E1–E5** Реализовано в одной сборке (overlay, drag, спрайты, действия, TTS, облачко, def, time, lifecycle, трей, ini)
 - [x] **E6** Кнопка «Прикольные игры» → Limbo Keys + GitHub repo
-- [ ] **E7** Проверка на XP / доработки после фидбека пользователя
+- [x] **E7** VideoBootSplash — MP4 видео + звук при загрузке Windows
+- [ ] **E8** Проверка на XP / доработки после фидбека пользователя
 
 ---
 
@@ -379,14 +380,15 @@ flowchart TB
 
 **Режим:** Executor  
 **Дата:** 2026-08-26  
-**Состояние:** Добавлена кнопка «Прикольные игры» → Limbo Keys; репозиторий на GitHub.
+**Состояние:** Limbo Keys (только installer.exe), VideoBootSplash (MP4 + звук), GitHub repo.
 
-**2026-08-26 — Прикольные игры / Limbo Keys:**
-- **Папка:** `assets/games/limbo keys/` — скопированы `limbo key.exe` + `resources/`.
-- **Меню:** ПКМ → Спец. функции → Прикольные игры → Limbo Keys.
-- **Запуск:** `ShellExecuteW` по пути `assets\games\limbo keys\limbo key.exe`.
-- **Код:** `Application.cpp` — `kMenuCoolGamesLimboKeys = 2301`, подменю в `special`, обработчик `ShellExecuteW`.
-- **Сборка:** `build-mingw.bat` — ✅ успешно.
+**2026-08-26 — Limbo Keys + VideoBootSplash:**
+- **Limbo Keys:** `assets/games/installer.exe` — ПКМ → Спец. функции → Прикольные игры → Limbo Keys → запускает installer.exe (без автозапуска игры).
+- **VideoBootSplash:** `Six_Seven_VideoBoot.exe` — отдельный .exe, MP4 видео + WAV/MP3 звук при входе в Windows. НЕ модифицирует BIOS.
+  - Файлы: `assets/boot/video.mp4` + `assets/boot/sound.wav` (или .mp3).
+  - Настройка: `[videoboot] enabled=1` в `six_seven.ini`.
+  - Запуск: `Six_Seven_VideoBoot.exe --boot`.
+  - Автозапуск: `VideoBootSplash::SyncAutostart(true)`.
 - **GitHub:** https://github.com/fddqdddd/-six-seven_helper (публичный).
 
 **2026-06-15 — админ-панель / терминал / знакомство:**

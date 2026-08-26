@@ -4,6 +4,8 @@ project(Six_Seven VERSION 0.2.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+configure_file(src/six_seven.rc.in ${CMAKE_BINARY_DIR}/six_seven.rc @ONLY)
+
 if(MINGW)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -static-libgcc -static-libstdc++ -municode")
 endif()
@@ -56,7 +58,7 @@ add_executable(Six_Seven_VideoBoot WIN32
     src/Util.cpp
 )
 
-add_executable(Six_Seven WIN32 ${SIX_SEVEN_SOURCES})
+add_executable(Six_Seven WIN32 ${SIX_SEVEN_SOURCES} ${CMAKE_BINARY_DIR}/six_seven.rc)
 
 target_include_directories(Six_Seven PRIVATE
     ${CMAKE_SOURCE_DIR}
