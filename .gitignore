@@ -1,0 +1,13 @@
+build/
+build-mingw/
+out/
+.vs/
+*.user
+*.suo
+CMakeCache.txt
+CMakeFiles/
+*.exe
+*.obj
+*.pdb
+*.ilk
+.zip

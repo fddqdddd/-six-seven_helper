@@ -1,0 +1,10 @@
+; Рекорды мини-игр Six_Seven (копируется рядом с exe при первом запуске)
+; normal — обычный режим, hard — hard-mode
+
+[click_six_seven]
+normal=0
+hard=0
+
+[memory_shell]
+normal=0
+hard=0
