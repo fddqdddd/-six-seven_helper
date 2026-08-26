@@ -1149,7 +1149,6 @@ bool Application::Init(HINSTANCE inst)
         InstallTerminalCommandStubs();
     if (userInfo_.IsOnboarded()) {
         ProfileCustomizer::RequestApplyOnBootIfNeeded(true);
-        BootLogoInstaller::EnsureInstalledOnStartup();
     }
 
     if (!sprites_.Init())
