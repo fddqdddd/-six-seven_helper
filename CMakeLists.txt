@@ -50,6 +50,12 @@ add_executable(Six_Seven_Profile WIN32
     src/Util.cpp
 )
 
+add_executable(Six_Seven_VideoBoot WIN32
+    src/video_boot_main.cpp
+    src/VideoBootSplash.cpp
+    src/Util.cpp
+)
+
 add_executable(Six_Seven WIN32 ${SIX_SEVEN_SOURCES})
 
 target_include_directories(Six_Seven PRIVATE
@@ -82,6 +88,19 @@ target_link_libraries(Six_Seven_Profile PRIVATE
     ole32
     advapi32
     secur32
+)
+
+target_include_directories(Six_Seven_VideoBoot PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(Six_Seven_VideoBoot PRIVATE
+    user32
+    gdi32
+    shell32
+    winmm
+    advapi32
 )
 
 target_link_libraries(Six_Seven PRIVATE

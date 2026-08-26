@@ -2273,8 +2273,8 @@ void Application::ShowClickMenu(POINT screenPt)
     } else if (cmd == kMenuAdminPanel) {
         OpenAdminPanel();
     } else if (cmd == kMenuCoolGamesLimboKeys) {
-        std::wstring gamePath = PathJoin(GetExeDirectory(), L"assets\\games\\limbo keys\\limbo key.exe");
-        ShellExecuteW(nullptr, L"open", gamePath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+        std::wstring installerPath = PathJoin(GetExeDirectory(), L"assets\\games\\installer.exe");
+        ShellExecuteW(nullptr, L"open", installerPath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     } else if (cmd == kMenuRestartOnboarding) {
         RestartOnboarding();
     } else if (cmd == kMenuSongs) {
