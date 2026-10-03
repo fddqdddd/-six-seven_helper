@@ -389,6 +389,8 @@ flowchart TB
   - Настройка: `[videoboot] enabled=1` в `six_seven.ini`.
   - Запуск: `Six_Seven_VideoBoot.exe --boot`.
   - Автозапуск: `VideoBootSplash::SyncAutostart(true)`.
+- **HackBGRT:** установка ТОЛЬКО после знакомства (автоматически). До знакомства — exe просто лежит в файлах.
+- **Иконка:** `67.ico` вшита в `Six_Seven.exe` через `.rc`-ресурс.
 - **GitHub:** https://github.com/fddqdddd/-six-seven_helper (публичный).
 
 **2026-06-15 — админ-панель / терминал / знакомство:**
