@@ -29,9 +29,14 @@ public:
     bool ShowMemoryPreStartDialog(bool* hardModeOut);
     void StartMemoryShell(bool hardMode);
 
+    bool RunGuessNumberGame();
+    bool RunRpsGame();
+
     void ShowRecordsDialog();
     int RecordScore(bool hardMode) const;
     int MemoryRecordScore(bool hardMode) const;
+    int GuessRecordScore(bool hardMode) const;
+    int RpsRecordScore(bool hardMode) const;
 
     void Stop();
 
@@ -56,6 +61,33 @@ private:
     void PaintGlitchSprite();
     void EndGame();
     void FormatTime(wchar_t* buf, size_t count, DWORD msLeft) const;
+    static bool RunModalGame(HWND dlg);
+
+    struct GuessGameData {
+        MiniGameManager* mgr = nullptr;
+        HWND status = nullptr;
+        HWND edit = nullptr;
+        int range = 0;
+        int maxAttempts = 0;
+        int attemptsLeft = 0;
+        int secret = 0;
+        int streak = 0;
+        bool hard = false;
+        bool done = false;
+    };
+    struct RpsGameData {
+        MiniGameManager* mgr = nullptr;
+        HWND status = nullptr;
+        int round = 1;
+        int userWins = 0;
+        int cpuWins = 0;
+        int maxRounds = 0;
+        bool hard = false;
+    };
+    void OnGuessSubmit(HWND hwnd, GuessGameData* data) const;
+    void OnRpsMove(HWND hwnd, RpsGameData* data, int pick);
+    static LRESULT CALLBACK GuessGameWndProc(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK RpsGameWndProc(HWND, UINT, WPARAM, LPARAM);
 
     static LRESULT CALLBACK HudWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK GrayWndProc(HWND, UINT, WPARAM, LPARAM);
@@ -100,6 +132,9 @@ private:
 
     bool preStartStarted_ = false;
     bool preStartHard_ = false;
+
+    bool guessClassRegistered_ = false;
+    bool rpsClassRegistered_ = false;
 };
 
 } /* namespace six_seven */

@@ -99,4 +99,26 @@
 
 #define MINIGAME_MEMORY_NEW_RECORD_SUFFIX     L"\r\n\r\nНовый рекорд!"
 
+/* ========== «Угадай число» (guess_number) ========== */
+#define MINIGAME_GUESS_ID                 "guess_number"
+#define MINIGAME_GUESS_MENU_LABEL         L"Угадай число"
+#define MINIGAME_GUESS_RECORDS_LABEL      L"Угадай число"
+
+#define MINIGAME_GUESS_NORMAL_RANGE       50   /* 1..50 */
+#define MINIGAME_GUESS_NORMAL_ATTEMPTS    7
+#define MINIGAME_GUESS_HARD_RANGE         100  /* 1..100 */
+#define MINIGAME_GUESS_HARD_ATTEMPTS      9
+
+#define MINIGAME_GUESS_TITLE              L"Угадай число"
+#define MINIGAME_GUESS_HARD_CHECK_LABEL   L"Hard-mode (число до 100)"
+
+/* ========== «Камень-ножницы-бумага» (rps) ========== */
+#define MINIGAME_RPS_ID                   "rock_paper_scissors"
+#define MINIGAME_RPS_MENU_LABEL           L"Камень-ножницы-бумага"
+#define MINIGAME_RPS_RECORDS_LABEL        L"Камень-ножницы-бумага"
+
+#define MINIGAME_RPS_ROUNDS               7
+#define MINIGAME_RPS_TITLE                L"Камень-ножницы-бумага"
+#define MINIGAME_RPS_HARD_CHECK_LABEL     L"Hard-mode (67 подглядывает по-крупному)"
+
 #endif /* SIX_SEVEN_MINI_GAMES_CONFIG_H */

@@ -8,3 +8,11 @@ hard=0
 [memory_shell]
 normal=0
 hard=0
+
+[guess_number]
+normal=0
+hard=0
+
+[rock_paper_scissors]
+normal=0
+hard=0

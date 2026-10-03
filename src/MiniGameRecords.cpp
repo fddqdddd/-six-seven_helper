@@ -58,10 +58,14 @@ void MiniGameRecords::Load()
         else {
             EnsureGameSection(ini, MINIGAME_CLICK_ID);
             EnsureGameSection(ini, MINIGAME_MEMORY_ID);
+            EnsureGameSection(ini, MINIGAME_GUESS_ID);
+            EnsureGameSection(ini, MINIGAME_RPS_ID);
         }
     } else {
         EnsureGameSection(ini, MINIGAME_CLICK_ID);
         EnsureGameSection(ini, MINIGAME_MEMORY_ID);
+        EnsureGameSection(ini, MINIGAME_GUESS_ID);
+        EnsureGameSection(ini, MINIGAME_RPS_ID);
         MigrateLegacyKey(ini, MINIGAME_CLICK_ID, false);
         MigrateLegacyKey(ini, MINIGAME_CLICK_ID, true);
         MigrateLegacyKey(ini, MINIGAME_MEMORY_ID, false);
