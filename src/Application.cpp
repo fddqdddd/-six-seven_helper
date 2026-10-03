@@ -1155,6 +1155,7 @@ bool Application::Init(HINSTANCE inst)
     if (userInfo_.IsOnboarded()) {
         ProfileCustomizer::RequestApplyOnBootIfNeeded(true);
     }
+    RefreshMood();
 
     if (!sprites_.Init())
         return false;
@@ -1422,6 +1423,87 @@ void Application::OnStartupChainNext()
         actions_.ReturnToStay();
         ScheduleDef();
     }
+}
+
+void Application::RefreshMood()
+{
+    int mood = 65;
+    SYSTEMTIME st = {};
+    GetLocalTime(&st);
+    const int month = static_cast<int>(st.wMonth);
+    const int day = static_cast<int>(st.wDay);
+    const int hour = static_cast<int>(st.wHour);
+
+    if (userInfo_.IsBirthdayToday()) {
+        mood = 100;
+    } else if ((month == 1 && day == 1) || (month == 12 && day == 31)) {
+        mood = 95;
+    } else if (month == 2 && day == 23) {
+        mood = 92;
+    } else if (month == 3 && day == 8) {
+        mood = 96;
+    } else {
+        if (hour >= 5 && hour < 11)
+            mood = 78;
+        else if (hour >= 11 && hour < 18)
+            mood = 65;
+        else if (hour >= 18 && hour < 23)
+            mood = 85;
+        else
+            mood = 40;
+    }
+    mood_ = mood;
+    settings_.SaveMood(mood);
+}
+
+void Application::TickCursorCatch()
+{
+    if (shuttingDown_ || miniGames_.IsActive() || firstRunDialogueActive_ || dragging_ ||
+        !IsWindowVisible(hwnd_))
+        return;
+    const DWORD now = GetTickCount();
+
+    POINT pt = {};
+    if (!GetCursorPos(&pt))
+        return;
+    RECT wr = {};
+    if (!GetWindowRect(hwnd_, &wr))
+        return;
+    const int cx = wr.left + SIX_SEVEN_SPRITE_DRAW_X + SIX_SEVEN_SPRITE_WIDTH / 2;
+    const int cy = wr.top + SIX_SEVEN_SPRITE_DRAW_Y + SIX_SEVEN_SPRITE_HEIGHT / 2;
+    const int dx = cx - pt.x;
+    const int dy = cy - pt.y;
+    const int dist = static_cast<int>(
+        std::sqrt(static_cast<double>(dx) * dx + static_cast<double>(dy) * dy));
+
+    // Активная фаза: тянем курсор к персонажу.
+    if (now < nextCursorCatchUntilMs_) {
+        if (dist > SIX_SEVEN_CURSOR_CATCH_RADIUS + 40) {
+            nextCursorCatchUntilMs_ = 0;
+            return;
+        }
+        int nx = pt.x;
+        int ny = pt.y;
+        if (dx != 0)
+            nx += (dx > 0 ? 1 : -1) * SIX_SEVEN_CURSOR_CATCH_STEP_PX;
+        if (dy != 0)
+            ny += (dy > 0 ? 1 : -1) * SIX_SEVEN_CURSOR_CATCH_STEP_PX;
+        SetCursorPos(nx, ny);
+        return;
+    }
+
+    // Ожидание: срабатывание только при поднесении курсора совсем близко.
+    if (now < nextCursorCatchAtMs_)
+        return;
+    if (dist > SIX_SEVEN_CURSOR_CATCH_RADIUS)
+        return;
+    if ((GetAsyncKeyState(VK_LBUTTON) & 0x8000) || (GetAsyncKeyState(VK_RBUTTON) & 0x8000))
+        return;
+    if (speech_.IsSpeaking() || actions_.IsBusy())
+        return;
+
+    nextCursorCatchUntilMs_ = now + SIX_SEVEN_CURSOR_CATCH_DURATION_MS;
+    nextCursorCatchAtMs_ = now + SIX_SEVEN_CURSOR_CATCH_COOLDOWN_MS;
 }
 
 const char* Application::PickHelloContextPhraseFile() const
@@ -2408,6 +2490,9 @@ void Application::OnTimer(WPARAM timerId)
             movementWasActive_ = false;
             actions_.OnSpriteOneshotEnd();
         }
+#if SIX_SEVEN_CURSOR_CATCH_ENABLED
+        TickCursorCatch();
+#endif
         Paint();
     } else if (timerId == kDefCheck) {
         if (!shuttingDown_ && !miniGames_.IsActive()) {

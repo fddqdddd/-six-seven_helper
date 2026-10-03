@@ -60,7 +60,12 @@ void WriteDefaultIni(const std::wstring& path)
         u8"\r\n"
         u8"[bubble]\r\n"
         u8"; Максимум строк в облачке речи; при переполнении текст листается вверх.\r\n"
-        u8"max_lines=6\r\n";
+        u8"max_lines=6\r\n"
+        u8"\r\n"
+        u8"[ai]\r\n"
+        u8"; Настроение и «личность» (0–100).\r\n"
+        u8"; Программа обновляет его сама по времени суток и праздникам.\r\n"
+        u8"mood=65\r\n";
 }
 
 int ReadInt(const wchar_t* section, const wchar_t* key, int defaultValue, const wchar_t* ini)
@@ -137,6 +142,12 @@ void Settings::Load(AppSettings& out)
         out.bubbleMaxLines = 2;
     if (out.bubbleMaxLines > 12)
         out.bubbleMaxLines = 12;
+
+    out.mood = ReadInt(L"ai", L"mood", out.mood, ini.c_str());
+    if (out.mood < 0)
+        out.mood = 0;
+    if (out.mood > 100)
+        out.mood = 100;
 }
 
 bool Settings::IsAutostartEnabled() const
@@ -154,6 +165,18 @@ void Settings::SetAutostart(bool enabled)
 #if SIX_SEVEN_BOOT_AUTOSTART_ENABLED
     BootSplash::SyncAutostart(enabled);
 #endif
+}
+
+void Settings::SaveMood(int mood) const
+{
+    const std::wstring ini = PathJoin(GetExeDirectory(), L"six_seven.ini");
+    if (mood < 0)
+        mood = 0;
+    if (mood > 100)
+        mood = 100;
+    wchar_t buf[16];
+    wsprintfW(buf, L"%d", mood);
+    WritePrivateProfileStringW(L"ai", L"mood", buf, ini.c_str());
 }
 
 void Settings::Save(int x, int y, bool mute, bool idleBreath)

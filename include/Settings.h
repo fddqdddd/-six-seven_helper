@@ -14,6 +14,7 @@ struct AppSettings {
     int defDelayMaxSec = 180;
     int wanderWalkSec = 12;
     int bubbleMaxLines = 6;
+    int mood = 65;
 };
 
 class Settings {
@@ -22,6 +23,8 @@ public:
     void Save(int x, int y, bool mute, bool idleBreath);
     bool IsAutostartEnabled() const;
     void SetAutostart(bool enabled);
+
+    void SaveMood(int mood) const;
 
 private:
     void EnsureDefaultIni(const std::wstring& iniPath);

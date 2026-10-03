@@ -38,6 +38,13 @@
     ((SIX_SEVEN_WINDOW_WIDTH - SIX_SEVEN_SPRITE_WIDTH) / 2)
 #define SIX_SEVEN_SPRITE_DRAW_Y SIX_SEVEN_BUBBLE_SPACE_H
 
+/* ========== «Ловля курсора» (пранк): 67 на миг тянет курсор к себе ========== */
+#define SIX_SEVEN_CURSOR_CATCH_ENABLED     1
+#define SIX_SEVEN_CURSOR_CATCH_RADIUS      70   /* px от центра персонажа */
+#define SIX_SEVEN_CURSOR_CATCH_STEP_PX     6    /* px на кадр притягивания */
+#define SIX_SEVEN_CURSOR_CATCH_DURATION_MS 250  /* мс, пока тянем */
+#define SIX_SEVEN_CURSOR_CATCH_COOLDOWN_MS 8000 /* мс между срабатываниями */
+
 /* ========== Спрайты: размер кадра и фон colorkey (#FF00FF magenta) ========== */
 #define SIX_SEVEN_SPRITE_WIDTH        200
 #define SIX_SEVEN_SPRITE_HEIGHT       220

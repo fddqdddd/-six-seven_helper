@@ -52,6 +52,9 @@ private:
     void StartStartupChain();
     void OnStartupChainNext();
     const char* PickHelloContextPhraseFile() const;
+    void RefreshMood();
+    int Mood() const { return mood_; }
+    void TickCursorCatch();
     void StartFirstRun();
     void OnFirstRunWake();
     void OnFirstRunAppearanceDone();
@@ -165,6 +168,9 @@ private:
     std::string lastMoveSprite_;
     DWORD lastActivity_ = 0;
     DWORD nextDefAt_ = 0;
+    int mood_ = 65;
+    DWORD nextCursorCatchUntilMs_ = 0;
+    DWORD nextCursorCatchAtMs_ = 0;
     std::vector<DWORD> timeLastFire_;
     HWND colorPickerHwnd_ = nullptr;
     bool pendingNameDialogAccepted_ = false;
