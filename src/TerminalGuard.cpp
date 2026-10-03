@@ -272,6 +272,14 @@ void TerminalGuard::TryExecuteCommandFromText(const std::wstring& text, DWORD pi
             cmd = L"sleep67";
         else if (lower == L"67move" || lower.find(L"67move") != std::wstring::npos)
             cmd = L"67move";
+        else if (lower.find(L"шестьсемь отзовись") != std::wstring::npos ||
+                 lower.find(L"67 отзовись") != std::wstring::npos)
+            cmd = L"67_otzov";
+        else if (lower.find(L"погладить 67") != std::wstring::npos ||
+                 lower.find(L"погладь 67") != std::wstring::npos)
+            cmd = L"67_pet";
+        else if (lower.find(L"покажи глюк") != std::wstring::npos)
+            cmd = L"67_glitch";
         else
             continue;
 

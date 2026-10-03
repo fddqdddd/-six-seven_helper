@@ -31,6 +31,11 @@
 #define MOD_SPRITE_HAPPY_BRIHSDAY  "click/happy-brihsday"
 #define MOD_SOUND_CLICK_MUMBLE     MOD_SOUNDS_ROOT "/click/mumble.wav"
 
+/* ===== click: действия на фразах (спрайт переиспользуется, файлы фраз в assets) ===== */
+#define MOD_PHRASES_CLICK_QUOTES       MOD_PHRASES_ROOT "/click/quotes.txt"
+#define MOD_PHRASES_CLICK_COMPLIMENTS  MOD_PHRASES_ROOT "/click/compliments.txt"
+#define MOD_PHRASES_CLICK_WEATHER      MOD_PHRASES_ROOT "/click/weather.txt"
+
 /* ========== first (первый запуск) ========== */
 #define MOD_SPRITE_FIRST_SLEEP       "first/sleep"
 #define MOD_SPRITE_FIRST_APPEARANCE  "first/appearance"
@@ -66,6 +71,16 @@
 #define MOD_SPRITE_HELLO_SPEAK     "hello/speak"
 #define MOD_PHRASES_HELLO          MOD_PHRASES_ROOT "/hello/lines.txt"
 #define MOD_PHRASE_HELLO_WAVE      L"Ещё раз здравствуй, friend!"
+
+/* ===== hello: приветствия по времени суток и праздникам (файлы берутся по context) ===== */
+#define MOD_PHRASES_HELLO_MORNING  MOD_PHRASES_ROOT "/hello/morning.txt"
+#define MOD_PHRASES_HELLO_DAY      MOD_PHRASES_ROOT "/hello/day.txt"
+#define MOD_PHRASES_HELLO_EVENING  MOD_PHRASES_ROOT "/hello/evening.txt"
+#define MOD_PHRASES_HELLO_NIGHT    MOD_PHRASES_ROOT "/hello/night.txt"
+#define MOD_PHRASES_HELLO_NEWYEAR  MOD_PHRASES_ROOT "/hello/newyear.txt"
+#define MOD_PHRASES_HELLO_FEB23    MOD_PHRASES_ROOT "/hello/feb23.txt"
+#define MOD_PHRASES_HELLO_MARCH8   MOD_PHRASES_ROOT "/hello/march8.txt"
+#define MOD_PHRASES_HELLO_BIRTHDAY MOD_PHRASES_ROOT "/hello/birthday.txt"
 
 /* ========== bye / leaving ========== */
 #define MOD_SPRITE_BYE_WAVE   "bye/wave"

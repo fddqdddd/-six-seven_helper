@@ -259,6 +259,39 @@
         L"", \
         0, \
         1, \
+        0) \
+    ACTION_CLICK( \
+        quote, \
+        L"Цитата дня", \
+        MOD_SPRITE_CLICK_SPEAK, \
+        oneshot, \
+        "", \
+        MOD_PHRASES_CLICK_QUOTES, \
+        L"", \
+        0, \
+        1, \
+        0) \
+    ACTION_CLICK( \
+        compliment, \
+        L"Комплимент", \
+        MOD_SPRITE_CLICK_SPEAK, \
+        oneshot, \
+        "", \
+        MOD_PHRASES_CLICK_COMPLIMENTS, \
+        L"", \
+        0, \
+        1, \
+        0) \
+    ACTION_CLICK( \
+        weather, \
+        L"Погода", \
+        MOD_SPRITE_CLICK_SPEAK, \
+        oneshot, \
+        "", \
+        MOD_PHRASES_CLICK_WEATHER, \
+        L"", \
+        0, \
+        1, \
         0)
 
 /* ========== Старт: appearance → hello ========== */

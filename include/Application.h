@@ -51,6 +51,7 @@ private:
     void FireTimeActions();
     void StartStartupChain();
     void OnStartupChainNext();
+    const char* PickHelloContextPhraseFile() const;
     void StartFirstRun();
     void OnFirstRunWake();
     void OnFirstRunAppearanceDone();

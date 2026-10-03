@@ -24,6 +24,9 @@ constexpr CommandDef kCommands[] = {
     { L"kill_67" },
     { L"sleep67" },
     { L"67move" },
+    { L"67_otzov" },
+    { L"67_pet" },
+    { L"67_glitch" },
 };
 
 std::wstring LocalAppDataPath()

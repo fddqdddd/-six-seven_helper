@@ -558,11 +558,14 @@ LRESULT CALLBACK Application::CommandsDialogWndProc(HWND hwnd, UINT msg, WPARAM 
             L"six-seven_open — открыть окно 67\r\n"
             L"kill_67 — завершить процесс 67 (не удаляет с диска)\r\n"
             L"sleep67 — усыпить 67, чтение книги или сон (случайно)\r\n"
-            L"67move — переместить 67, как при долгой скуке";
+            L"67move — переместить 67, как при долгой скуке\r\n"
+            L"шестьсемь отзовись — позвать 67\r\n"
+            L"погладить 67 — погладить 67\r\n"
+            L"покажи глюк — глюк?";
         CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", text,
                         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | WS_VSCROLL, 12, 12,
-                        360, 150, hwnd, nullptr, cs->hInstance, nullptr);
-        CreateWindowExW(0, L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON, 152, 172,
+                        360, 176, hwnd, nullptr, cs->hInstance, nullptr);
+        CreateWindowExW(0, L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON, 152, 200,
                         80, 26, hwnd, reinterpret_cast<HMENU>(IDOK), cs->hInstance, nullptr);
         return 0;
     }
@@ -1406,12 +1409,44 @@ void Application::StartStartupChain()
 void Application::OnStartupChainNext()
 {
     startupDone_ = true;
-    if (kHelloActionCount > 0)
-        actions_.Run(PickRandom(kHelloActions, kHelloActionCount));
-    else {
+    if (kHelloActionCount > 0) {
+        const SixSevenActionDef& base = PickRandom(kHelloActions, kHelloActionCount);
+        SixSevenActionDef ctx = base;
+        const char* contextFile = PickHelloContextPhraseFile();
+        if (contextFile && *contextFile)
+            ctx.phrase_file = contextFile;
+        actions_.Run(ctx);
+    } else {
         actions_.ReturnToStay();
         ScheduleDef();
     }
+}
+
+const char* Application::PickHelloContextPhraseFile() const
+{
+    if (userInfo_.IsBirthdayToday())
+        return MOD_PHRASES_HELLO_BIRTHDAY;
+
+    SYSTEMTIME st = {};
+    GetLocalTime(&st);
+    const int month = static_cast<int>(st.wMonth);
+    const int day = static_cast<int>(st.wDay);
+    const int hour = static_cast<int>(st.wHour);
+
+    if ((month == 1 && day == 1) || (month == 12 && day == 31))
+        return MOD_PHRASES_HELLO_NEWYEAR;
+    if (month == 2 && day == 23)
+        return MOD_PHRASES_HELLO_FEB23;
+    if (month == 3 && day == 8)
+        return MOD_PHRASES_HELLO_MARCH8;
+
+    if (hour >= 5 && hour < 12)
+        return MOD_PHRASES_HELLO_MORNING;
+    if (hour >= 12 && hour < 18)
+        return MOD_PHRASES_HELLO_DAY;
+    if (hour >= 18 && hour < 23)
+        return MOD_PHRASES_HELLO_EVENING;
+    return MOD_PHRASES_HELLO_NIGHT;
 }
 
 void Application::StartFirstRun()
@@ -2164,6 +2199,22 @@ void Application::ExecuteTerminalCommand(const std::wstring& command)
     if (command == L"67move") {
         NoteUserActivity();
         actions_.TriggerWanderMove();
+        return;
+    }
+    if (command == L"67_otzov") {
+        NoteUserActivity();
+        SpeakNotice(L"Я здесь, friend! Шесть-Семь на связи.");
+        return;
+    }
+    if (command == L"67_pet") {
+        NoteUserActivity();
+        SpeakNotice(L"Мур-мур! Спасибо, friend, приятно.");
+        return;
+    }
+    if (command == L"67_glitch") {
+        NoteUserActivity();
+        SpeakNotice(L"Глюк? У меня не бывает глюков. Хорошо протестированный скуф.");
+        return;
     }
 }
 
