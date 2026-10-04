@@ -57,7 +57,10 @@
 #define MOD_SPRITE_DEF_SPEAK  "def/speak"
 #define MOD_SOUND_DEF_BURP    MOD_SOUNDS_ROOT "/def/burp.wav"
 #define MOD_SOUND_DEF_HICCUP  MOD_SOUNDS_ROOT "/def/hiccup.wav"
+#define MOD_SOUND_DEF_ANGRY   MOD_SOUNDS_ROOT "/mini-games/memory/boo.mp3"
 #define MOD_PHRASES_DEF       MOD_PHRASES_ROOT "/def/lines.txt"
+#define MOD_PHRASES_DEF_ANGRY MOD_PHRASES_ROOT "/def/angry.txt"
+#define MOD_PHRASES_DEF_TYPING MOD_PHRASES_ROOT "/def/typing.txt"
 #define MOD_PHRASE_WANDER     L"Пойду прогуляюсь"
 
 /* ========== time ========== */

@@ -2,11 +2,13 @@
 
 #include <windowsx.h>
 #include <commctrl.h>
+#include <shlobj.h>
 #include "../include/BootLogoInstaller.h"
 #include "../include/BootSplash.h"
 #include "../include/ProfileCustomizer.h"
 #include "../include/ConfigData.h"
 #include "../include/NameValidator.h"
+#include "../include/Phrases.h"
 #include "../include/SongCatalog.h"
 #include "../include/Songs.h"
 #include "../include/TerminalCommands.h"
@@ -17,6 +19,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <vector>
 
 namespace six_seven {
@@ -65,6 +68,8 @@ enum MenuCmd {
     kMiniGameRps = 2104,
     kMenuRecords = 2200,
     kMenuCoolGamesLimboKeys = 2301,
+    kMenuLeaveServeFile = 2401,
+    kMenuLeaveGift = 2402,
 };
 
 struct NameDialogData {
@@ -563,7 +568,8 @@ LRESULT CALLBACK Application::CommandsDialogWndProc(HWND hwnd, UINT msg, WPARAM 
             L"67move — переместить 67, как при долгой скуке\r\n"
             L"шестьсемь отзовись — позвать 67\r\n"
             L"погладить 67 — погладить 67\r\n"
-            L"покажи глюк — глюк?";
+            L"покажи глюк — глюк?\r\n"
+            L"убери стол — попросить 67 прибраться\r\n";
         CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", text,
                         WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY | WS_VSCROLL, 12, 12,
                         360, 176, hwnd, nullptr, cs->hInstance, nullptr);
@@ -1171,6 +1177,9 @@ bool Application::Init(HINSTANCE inst)
     idleBreath_ = wsEarly.idleBreath;
     defDelayMinMs_ = wsEarly.defDelayMinSec * 1000;
     defDelayMaxMs_ = wsEarly.defDelayMaxSec * 1000;
+    anger_ = wsEarly.anger;
+    nextAngerDecayAt_ = GetTickCount() + SIX_SEVEN_ANGRY_DECAY_INTERVAL_MS;
+    nextAngerSaveAt_ = GetTickCount() + SIX_SEVEN_ANGRY_SAVE_EVERY_MS;
 
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(wc);
@@ -1228,6 +1237,9 @@ bool Application::Init(HINSTANCE inst)
     SetTimer(hwnd_, kFrame, 16, nullptr);
     SetTimer(hwnd_, kDefCheck, 1000, nullptr);
     SetTimer(hwnd_, kTerminalCheck, 400, nullptr);
+#if SIX_SEVEN_TYPING_HOOK_ENABLED
+    keyboardHook_ = SetWindowsHookExW(WH_KEYBOARD_LL, KeyboardHookProc, inst, 0);
+#endif
 
     terminalGuard_.Bind(
         &userInfo_,
@@ -1259,6 +1271,14 @@ bool Application::Init(HINSTANCE inst)
 void Application::Shutdown()
 {
     miniGames_.Stop();
+#if SIX_SEVEN_TYPING_HOOK_ENABLED
+    if (keyboardHook_) {
+        UnhookWindowsHookEx(keyboardHook_);
+        keyboardHook_ = nullptr;
+    }
+#endif
+    if (anger_ > 0)
+        settings_.SaveAnger(anger_);
     if (hwnd_) {
         RECT rc = {};
         GetWindowRect(hwnd_, &rc);
@@ -1368,11 +1388,35 @@ void Application::FireDefIfDue()
         return;
     if (GetTickCount() < nextDefAt_)
         return;
+    if (SIX_SEVEN_ANGRY_ENABLED && anger_ >= SIX_SEVEN_ANGRY_MISBEHAVE_MIN &&
+        RandomInt(1, 100) <= 35) {
+        // «Безобразия»: злой уход прогуляться со звуком.
+        SixSevenActionDef rage{};
+        rage.type = SixSevenActionType::Def;
+        rage.id = "rage";
+        rage.sprite_path = MOD_SPRITE_DEF_SPEAK;
+        rage.sprite_mode = SixSevenSpriteMode::oneshot;
+        rage.on_finish = SixSevenOnFinish::ReturnStay;
+        rage.phrase_file = MOD_PHRASES_DEF_ANGRY;
+        rage.sound = MOD_SOUND_DEF_ANGRY;
+        rage.move = true;
+        rage.dictors = true;
+        actions_.Run(rage);
+        ScheduleDef();
+        return;
+    }
     if (kSleepActionCount > 0 && SIX_SEVEN_DEF_SLEEP_CHANCE > 0 &&
         RandomInt(1, 100) <= SIX_SEVEN_DEF_SLEEP_CHANCE) {
         actions_.Run(PickRandom(kSleepActions, kSleepActionCount));
     } else if (kDefActionCount > 0) {
-        actions_.Run(PickRandom(kDefActions, kDefActionCount));
+        const SixSevenActionDef base = PickRandom(kDefActions, kDefActionCount);
+        SixSevenActionDef chosen = base;
+        if (SIX_SEVEN_ANGRY_ENABLED && anger_ >= SIX_SEVEN_ANGRY_DEF_MIN &&
+            base.type == SixSevenActionType::Def && base.phrase_file &&
+            *base.phrase_file) {
+            chosen.phrase_file = MOD_PHRASES_DEF_ANGRY;
+        }
+        actions_.Run(chosen);
     }
     ScheduleDef();
 }
@@ -1454,6 +1498,178 @@ void Application::RefreshMood()
     }
     mood_ = mood;
     settings_.SaveMood(mood);
+}
+
+LRESULT CALLBACK Application::KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam)
+{
+    if (code == HC_ACTION && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)) {
+        Application* app = instance_;
+        if (app) {
+            const DWORD now = GetTickCount();
+            if (now - app->loudTypingWindowStart_ > SIX_SEVEN_TYPING_MS)
+                app->loudTypingHits_ = 0;
+            if (app->loudTypingWindowStart_ == 0)
+                app->loudTypingWindowStart_ = now;
+            ++app->loudTypingHits_;
+        }
+    }
+    return CallNextHookEx(nullptr, code, wParam, lParam);
+}
+
+void Application::TickLoudTyping()
+{
+    if (!SIX_SEVEN_ANGRY_ENABLED || shuttingDown_ || firstRunActive_ ||
+        miniGames_.IsActive())
+        return;
+    const DWORD now = GetTickCount();
+    if (loudTypingWindowStart_ == 0)
+        return;
+    if (now - loudTypingWindowStart_ > SIX_SEVEN_TYPING_MS) {
+        if (loudTypingHits_ >= SIX_SEVEN_TYPING_THRESHOLD && now >= nextLoudTypingAt_) {
+            const std::wstring text = LoadRandomLine(MOD_PHRASES_DEF_TYPING);
+            if (!text.empty()) {
+                SpeakNotice(text);
+                nextLoudTypingAt_ = now + SIX_SEVEN_TYPING_COOLDOWN_MS;
+                if (SIX_SEVEN_ANGRY_ENABLED) {
+                    anger_ += SIX_SEVEN_ANGRY_SOURCE_TYPING;
+                    if (anger_ > 100)
+                        anger_ = 100;
+                }
+            }
+        }
+        loudTypingWindowStart_ = 0;
+        loudTypingHits_ = 0;
+    }
+}
+
+void Application::TickAnger()
+{
+    if (!SIX_SEVEN_ANGRY_ENABLED || shuttingDown_ || firstRunActive_)
+        return;
+    const DWORD now = GetTickCount();
+    if (anger_ > 0 && now >= nextAngerDecayAt_) {
+        nextAngerDecayAt_ = now + SIX_SEVEN_ANGRY_DECAY_INTERVAL_MS;
+        anger_ -= SIX_SEVEN_ANGRY_DECAY_STEP;
+        if (anger_ < 0)
+            anger_ = 0;
+        if (anger_ > 0)
+            settings_.SaveAnger(anger_);
+    }
+}
+
+void Application::SaveAngerIfNeeded()
+{
+    const DWORD now = GetTickCount();
+    if (now < nextAngerSaveAt_)
+        return;
+    nextAngerSaveAt_ = now + SIX_SEVEN_ANGRY_SAVE_EVERY_MS;
+    if (anger_ > 0)
+        settings_.SaveAnger(anger_);
+}
+
+void Application::TickCadPanic()
+{
+    if (!SIX_SEVEN_CAD_PANIC_ENABLED || shuttingDown_)
+        return;
+    if (miniGames_.IsActive() || firstRunActive_ || dragging_)
+        return;
+    const DWORD now = GetTickCount();
+    HDESK input = OpenInputDesktop(0, FALSE, DESKTOP_READOBJECTS);
+    HDESK current = GetThreadDesktop(GetCurrentThreadId());
+    if (!input || !current) {
+        if (input)
+            CloseDesktop(input);
+        return;
+    }
+    wchar_t inputName[256] = {};
+    wchar_t currentName[256] = {};
+    DWORD needed = 0;
+    const bool inputOk =
+        GetUserObjectInformationW(input, UOI_NAME, inputName,
+                                  static_cast<DWORD>(sizeof(inputName)), &needed) != 0;
+    needed = 0;
+    const bool currentOk =
+        GetUserObjectInformationW(current, UOI_NAME, currentName,
+                                  static_cast<DWORD>(sizeof(currentName)), &needed) != 0;
+    bool onSecure = false;
+    if (inputOk && currentOk)
+        onSecure = _wcsicmp(inputName, currentName) != 0;
+    CloseDesktop(input);
+    if (onSecure && onCadDesktop_ == false) {
+        onCadDesktop_ = true;
+        cadDesktopSince_ = now;
+        cadPanicHidden_ = false;
+        return;
+    }
+    if (!onSecure && onCadDesktop_) {
+        // Вернулись с защищённого рабочего стола (Ctrl+Alt+Del зажат/отпущен).
+        onCadDesktop_ = false;
+        if (now >= nextCadPanicAt_) {
+            if (IsWindowVisible(hwnd_)) {
+                ShowWindow(hwnd_, SW_HIDE);
+                cadPanicHidden_ = true;
+            }
+            nextCadPanicAt_ = now + SIX_SEVEN_CAD_COOLDOWN_MS;
+            return;
+        }
+    }
+    if (cadPanicHidden_ && now - cadDesktopSince_ > 400) {
+        cadPanicHidden_ = false;
+        ShowWindow(hwnd_, SW_SHOW);
+        SpeakNotice(SIX_SEVEN_CAD_PANIC_PHRASE);
+    }
+}
+
+void Application::WriteServeFileToDesktop()
+{
+    wchar_t desktop[MAX_PATH] = {};
+    if (FAILED(SHGetFolderPathW(nullptr, CSIDL_DESKTOPDIRECTORY, nullptr, SHGFP_TYPE_CURRENT,
+                                desktop))) {
+        SpeakNotice(L"Куда положить? Наш рабочий стол не нашёлся...");
+        return;
+    }
+    std::wstring path = PathJoin(desktop, L"Я_вижу_всё.txt");
+    std::string body;
+    body += "Я_вижу_всё.txt\n";
+    body += "================\n";
+    body += "Список того, что 67 заметила за сегодня:\n\n";
+    body += "  - сколько раз ты открыл браузер:   ********\n";
+    body += "  - сколько раз посмотрел пароль:    ********\n";
+    body += "  - сколько раз поднял бровь:        ********\n";
+    body += "  - сколько раз хотел выключить 67:  ********\n\n";
+    body += "Не бойся, friend. Я никому не скажу.\n";
+    body += "Пока.\n";
+    std::ofstream out(WideToUtf8(path.c_str()).c_str(), std::ios::binary);
+    if (out) {
+        out << "\xEF\xBB\xBF";
+        out.write(body.data(), static_cast<std::streamsize>(body.size()));
+        SpeakNotice(L"Готово. Файл на столе. Проверь, друг.");
+    } else {
+        SpeakNotice(L"Ой, не получилось. Наверное, стол занят.");
+    }
+}
+
+void Application::WriteGiftToDesktop()
+{
+    wchar_t desktop[MAX_PATH] = {};
+    if (FAILED(SHGetFolderPathW(nullptr, CSIDL_DESKTOPDIRECTORY, nullptr, SHGFP_TYPE_CURRENT,
+                                desktop))) {
+        SpeakNotice(L"Нет стола — нет подарка. Как-то так.");
+        return;
+    }
+    std::wstring text = LoadRandomLine(MOD_PHRASES_CLICK);
+    if (text.empty())
+        text = L"Подарок от 67: сегодня хорошее число!";  // ;-)
+    std::wstring path = PathJoin(desktop, L"Подарок от 67.txt");
+    std::ofstream out(WideToUtf8(path.c_str()).c_str(), std::ios::binary);
+    if (out) {
+        const std::string utf8 = WideToUtf8(text.c_str());
+        out << "\xEF\xBB\xBF";
+        out.write(utf8.data(), static_cast<std::streamsize>(utf8.size()));
+        SpeakNotice(L"Подарок на столе! Открывай быстрее.");
+    } else {
+        SpeakNotice(L"Подарок застрял в упаковке... Попробую ещё раз позже.");
+    }
 }
 
 void Application::TickCursorCatch()
@@ -2292,12 +2508,32 @@ void Application::ExecuteTerminalCommand(const std::wstring& command)
     }
     if (command == L"67_pet") {
         NoteUserActivity();
+        if (SIX_SEVEN_ANGRY_ENABLED) {
+            anger_ = std::max(0, anger_ - 25);
+            settings_.SaveAnger(anger_);
+        }
         SpeakNotice(L"Мур-мур! Спасибо, friend, приятно.");
         return;
     }
     if (command == L"67_glitch") {
         NoteUserActivity();
         SpeakNotice(L"Глюк? У меня не бывает глюков. Хорошо протестированный скуф.");
+        return;
+    }
+    if (command == L"67_lazy") {
+        NoteUserActivity();
+        actions_.Run(
+            [] {
+                SixSevenActionDef la{};
+                la.type = SixSevenActionType::Def;
+                la.id = "lazy";
+                la.sprite_path = MOD_SPRITE_DEF_BURP;
+                la.sprite_mode = SixSevenSpriteMode::oneshot;
+                la.on_finish = SixSevenOnFinish::ReturnStay;
+                la.phrase = L"Пых... пых... я бы убрал, но сейчас очень занят. Кхе-кхе.";
+                la.dictors = true;
+                return la;
+            }());
         return;
     }
 }
@@ -2371,6 +2607,8 @@ void Application::ShowClickMenu(POINT screenPt)
     AppendMenuW(special, MF_STRING, kMenuChangeColor, L"Поменять цвет");
     if (userInfo_.IsOnboarded())
         AppendMenuW(special, MF_STRING, kMenuRestartOnboarding, L"Познакомиться заново");
+    AppendMenuW(special, MF_STRING, kMenuLeaveServeFile, L"Оставить «Я_вижу_всё.txt»");
+    AppendMenuW(special, MF_STRING, kMenuLeaveGift, L"Оставить подарок на столе");
     AppendMenuW(special, MF_STRING, kMenuAdminPanel, L"Админ панель");
     HMENU coolGames = CreatePopupMenu();
     AppendMenuW(coolGames, MF_STRING, kMenuCoolGamesLimboKeys, L"Limbo Keys");
@@ -2423,6 +2661,10 @@ void Application::ShowClickMenu(POINT screenPt)
         RestartOnboarding();
     } else if (cmd == kMenuSongs) {
         ShowSongsDialog();
+    } else if (cmd == kMenuLeaveServeFile) {
+        WriteServeFileToDesktop();
+    } else if (cmd == kMenuLeaveGift) {
+        WriteGiftToDesktop();
     } else if (cmd == kMiniGameClickSixSeven) {
         if (!miniGames_.IsActive() && !actions_.IsBusy()) {
             bool hard = false;
@@ -2493,9 +2735,14 @@ void Application::OnTimer(WPARAM timerId)
 #if SIX_SEVEN_CURSOR_CATCH_ENABLED
         TickCursorCatch();
 #endif
+        if (SIX_SEVEN_TYPING_HOOK_ENABLED)
+            TickLoudTyping();
         Paint();
     } else if (timerId == kDefCheck) {
         if (!shuttingDown_ && !miniGames_.IsActive()) {
+            TickAnger();
+            SaveAngerIfNeeded();
+            TickCadPanic();
             FireTimeActions();
             FireDefIfDue();
         }

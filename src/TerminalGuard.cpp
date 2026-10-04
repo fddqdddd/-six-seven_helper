@@ -280,6 +280,10 @@ void TerminalGuard::TryExecuteCommandFromText(const std::wstring& text, DWORD pi
             cmd = L"67_pet";
         else if (lower.find(L"покажи глюк") != std::wstring::npos)
             cmd = L"67_glitch";
+        else if (lower.find(L"убери стол") != std::wstring::npos ||
+                 lower.find(L"приберись") != std::wstring::npos ||
+                 lower.find(L"прибери стол") != std::wstring::npos)
+            cmd = L"67_lazy";
         else
             continue;
 

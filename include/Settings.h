@@ -15,6 +15,7 @@ struct AppSettings {
     int wanderWalkSec = 12;
     int bubbleMaxLines = 6;
     int mood = 65;
+    int anger = 0;
 };
 
 class Settings {
@@ -25,6 +26,7 @@ public:
     void SetAutostart(bool enabled);
 
     void SaveMood(int mood) const;
+    void SaveAnger(int anger) const;
 
 private:
     void EnsureDefaultIni(const std::wstring& iniPath);

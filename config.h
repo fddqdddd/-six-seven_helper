@@ -45,6 +45,23 @@
 #define SIX_SEVEN_CURSOR_CATCH_DURATION_MS 250  /* мс, пока тянем */
 #define SIX_SEVEN_CURSOR_CATCH_COOLDOWN_MS 8000 /* мс между срабатываниями */
 
+/* ========== Характер 67: злость, «безобразия», громкий набор, паника на Ctrl+Alt+Del ========== */
+#define SIX_SEVEN_ANGRY_ENABLED               1
+#define SIX_SEVEN_ANGRY_SOURCE_TYPING         2   /* злость за всплеск громкого набора */
+#define SIX_SEVEN_ANGRY_DECAY_INTERVAL_MS     60000 /* каждые N мс злость падает на 1 */
+#define SIX_SEVEN_ANGRY_DECAY_STEP            1
+#define SIX_SEVEN_ANGRY_SAVE_EVERY_MS         15000 /* частота сохранения в ini */
+#define SIX_SEVEN_ANGRY_DEF_MIN                20  /* минимум для злых def-фраз */
+#define SIX_SEVEN_ANGRY_MISBEHAVE_MIN          70  /* порог «безобразий» (движение+звук) */
+#define SIX_SEVEN_TYPING_HOOK_ENABLED         1 /* WH_KEYBOARD_LL: реакция на громкий набор */
+#define SIX_SEVEN_TYPING_COOLDOWN_MS           90000 /* реакция на набор не чаще, чем раз в N мс */
+#define SIX_SEVEN_TYPING_MS                    1000  /* окно подсчёта нажатий */
+#define SIX_SEVEN_TYPING_THRESHOLD             12    /* нажатий в окне для «громкого набора» */
+
+#define SIX_SEVEN_CAD_PANIC_ENABLED            1
+#define SIX_SEVEN_CAD_COOLDOWN_MS              60000 /* паника на Ctrl+Alt+Del не чаще N мс */
+#define SIX_SEVEN_CAD_PANIC_PHRASE L"Я ничего не видел! Я ничего не видел!"
+
 /* ========== Спрайты: размер кадра и фон colorkey (#FF00FF magenta) ========== */
 #define SIX_SEVEN_SPRITE_WIDTH        200
 #define SIX_SEVEN_SPRITE_HEIGHT       220

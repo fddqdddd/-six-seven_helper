@@ -41,6 +41,7 @@ public:
 
 private:
     static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK KeyboardHookProc(int code, WPARAM wParam, LPARAM lParam);
     bool Init(HINSTANCE inst);
     void Shutdown();
     void Paint();
@@ -55,6 +56,12 @@ private:
     void RefreshMood();
     int Mood() const { return mood_; }
     void TickCursorCatch();
+    void TickAnger();
+    void TickLoudTyping();
+    void TickCadPanic();
+    void SaveAngerIfNeeded();
+    void WriteServeFileToDesktop();
+    void WriteGiftToDesktop();
     void StartFirstRun();
     void OnFirstRunWake();
     void OnFirstRunAppearanceDone();
@@ -169,6 +176,17 @@ private:
     DWORD lastActivity_ = 0;
     DWORD nextDefAt_ = 0;
     int mood_ = 65;
+    int anger_ = 0;
+    DWORD nextAngerDecayAt_ = 0;
+    DWORD nextAngerSaveAt_ = 0;
+    DWORD nextLoudTypingAt_ = 0;
+    DWORD loudTypingWindowStart_ = 0;
+    int loudTypingHits_ = 0;
+    DWORD nextCadPanicAt_ = 0;
+    DWORD cadDesktopSince_ = 0;
+    bool onCadDesktop_ = false;
+    bool cadPanicHidden_ = false;
+    HHOOK keyboardHook_ = nullptr;
     DWORD nextCursorCatchUntilMs_ = 0;
     DWORD nextCursorCatchAtMs_ = 0;
     std::vector<DWORD> timeLastFire_;

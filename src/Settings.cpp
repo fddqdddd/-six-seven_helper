@@ -65,7 +65,9 @@ void WriteDefaultIni(const std::wstring& path)
         u8"[ai]\r\n"
         u8"; Настроение и «личность» (0–100).\r\n"
         u8"; Программа обновляет его сама по времени суток и праздникам.\r\n"
-        u8"mood=65\r\n";
+        u8"mood=65\r\n"
+        u8"; Злость (0–100) — накапливается, когда над 67 издеваются.\r\n"
+        u8"anger=0\r\n";
 }
 
 int ReadInt(const wchar_t* section, const wchar_t* key, int defaultValue, const wchar_t* ini)
@@ -148,6 +150,12 @@ void Settings::Load(AppSettings& out)
         out.mood = 0;
     if (out.mood > 100)
         out.mood = 100;
+
+    out.anger = ReadInt(L"ai", L"anger", out.anger, ini.c_str());
+    if (out.anger < 0)
+        out.anger = 0;
+    if (out.anger > 100)
+        out.anger = 100;
 }
 
 bool Settings::IsAutostartEnabled() const
@@ -177,6 +185,18 @@ void Settings::SaveMood(int mood) const
     wchar_t buf[16];
     wsprintfW(buf, L"%d", mood);
     WritePrivateProfileStringW(L"ai", L"mood", buf, ini.c_str());
+}
+
+void Settings::SaveAnger(int anger) const
+{
+    const std::wstring ini = PathJoin(GetExeDirectory(), L"six_seven.ini");
+    if (anger < 0)
+        anger = 0;
+    if (anger > 100)
+        anger = 100;
+    wchar_t buf[16];
+    wsprintfW(buf, L"%d", anger);
+    WritePrivateProfileStringW(L"ai", L"anger", buf, ini.c_str());
 }
 
 void Settings::Save(int x, int y, bool mute, bool idleBreath)
