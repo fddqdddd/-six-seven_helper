@@ -60,6 +60,8 @@ private:
     void TickAnger();
     void TickLoudTyping();
     void TickCadPanic();
+    void TickApps();
+    void TickStretch();
     void SaveAngerIfNeeded();
     void WriteServeFileToDesktop();
     void WriteGiftToDesktop();
@@ -198,6 +200,9 @@ private:
     bool cadPanicHidden_ = false;
     DWORD nextTeaseFileAt_ = 0;
     HHOOK keyboardHook_ = nullptr;
+    DWORD nextAppsCheckAt_ = 0;
+    std::wstring lastSeenApp_;
+    DWORD nextStretchAt_ = 0;
     DWORD nextCursorCatchUntilMs_ = 0;
     DWORD nextCursorCatchAtMs_ = 0;
     std::vector<DWORD> timeLastFire_;

@@ -61,6 +61,7 @@
 #define MOD_PHRASES_DEF       MOD_PHRASES_ROOT "/def/lines.txt"
 #define MOD_PHRASES_DEF_ANGRY MOD_PHRASES_ROOT "/def/angry.txt"
 #define MOD_PHRASES_DEF_TYPING MOD_PHRASES_ROOT "/def/typing.txt"
+#define MOD_PHRASES_DEF_APPS   MOD_PHRASES_ROOT "/def/apps.txt"
 #define MOD_PHRASE_WANDER     L"Пойду прогуляюсь"
 
 /* ========== time ========== */

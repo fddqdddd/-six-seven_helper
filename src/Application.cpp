@@ -1744,6 +1744,62 @@ void Application::TickCadPanic()
     }
 }
 
+void Application::TickApps()
+{
+    if (!SIX_SEVEN_APPS_ENABLED || !startupDone_ || shuttingDown_ || miniGames_.IsActive() ||
+        firstRunActive_ || dragging_)
+        return;
+    const DWORD now = GetTickCount();
+    if (nextAppsCheckAt_ == 0) {
+        nextAppsCheckAt_ = now + static_cast<DWORD>(SIX_SEVEN_APPS_FIRST_DELAY_MS);
+        return;
+    }
+    if (now < nextAppsCheckAt_)
+        return;
+    nextAppsCheckAt_ = now + static_cast<DWORD>(SIX_SEVEN_APPS_INTERVAL_MS);
+    if (actions_.IsBusy())
+        return;
+
+    HWND fg = GetForegroundWindow();
+    if (!fg || fg == hwnd_)
+        return;
+    wchar_t title[256] = {};
+    if (GetWindowTextW(fg, title, 256) <= 0)
+        return;
+    std::wstring appName(title);
+    if (appName == lastSeenApp_)
+        return;
+    lastSeenApp_ = appName;
+    if (RandomInt(1, 100) > SIX_SEVEN_APPS_CHANCE)
+        return;
+
+    std::wstring line = LoadRandomLine(MOD_PHRASES_DEF_APPS);
+    if (line.empty())
+        return;
+    std::wstring::size_type pos = line.find(L"{app}");
+    if (pos != std::wstring::npos)
+        line.replace(pos, 5, appName);
+    SpeakNotice(line);
+}
+
+void Application::TickStretch()
+{
+    if (!SIX_SEVEN_STRETCH_ENABLED || !startupDone_ || shuttingDown_ || miniGames_.IsActive() ||
+        firstRunActive_ || dragging_ || actions_.IsBusy())
+        return;
+    const DWORD now = GetTickCount();
+    if (nextStretchAt_ == 0) {
+        nextStretchAt_ = now + 60000;
+        return;
+    }
+    if (now < nextStretchAt_)
+        return;
+    nextStretchAt_ = now + 600000; /* раз в 10 минут */
+    if (RandomInt(1, 100) > 40)
+        return;
+    SpeakNotice(SIX_SEVEN_STRETCH_PHRASE);
+}
+
 void Application::WriteServeFileToDesktop()
 {
     wchar_t desktop[MAX_PATH] = {};
@@ -3134,6 +3190,8 @@ void Application::OnTimer(WPARAM timerId)
             TickAnger();
             SaveAngerIfNeeded();
             TickCadPanic();
+            TickApps();
+            TickStretch();
             FireTimeActions();
             FireDefIfDue();
         }
