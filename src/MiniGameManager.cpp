@@ -950,8 +950,8 @@ void MiniGameManager::CreateHideIcon()
     RegisterClassOnce(app_->Inst(), L"SixSevenHideIcon", HideIconWndProc,
                       hideIconClassRegistered_);
 
-    const int w = 120;
-    const int h = 120;
+    const int w = 150;
+    const int h = 130 + MINIGAME_HIDE_NAME_BAND_H;
     BITMAPINFO bi = {};
     bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
     bi.bmiHeader.biWidth = w;
@@ -996,8 +996,8 @@ void MiniGameManager::TeleportHideIcon()
     if (hideIconIndex_ < 0)
         hideIconIndex_ = 0;
 
-    const int w = 120;
-    const int h = 96 + MINIGAME_HIDE_NAME_BAND_H;
+    const int w = 150;
+    const int h = 130 + MINIGAME_HIDE_NAME_BAND_H;
     const RECT wa = GetCombinedWorkArea();
     const int minY = wa.top + 20;
     const int maxY = wa.bottom - h - 20;
@@ -1015,8 +1015,8 @@ void MiniGameManager::PaintHideIcon()
 {
     if (!hideIconHwnd_ || !hideIconDibDc_ || !hideIconDibBits_ || !app_)
         return;
-    const int w = 120;
-    const int h = 96 + MINIGAME_HIDE_NAME_BAND_H;
+    const int w = 150;
+    const int h = 130 + MINIGAME_HIDE_NAME_BAND_H;
     auto* px = static_cast<BYTE*>(hideIconDibBits_);
     std::memset(px, 0, static_cast<size_t>(w) * h * 4);
 
@@ -1027,19 +1027,41 @@ void MiniGameManager::PaintHideIcon()
                                  DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
     HGDIOBJ oldFont = SelectObject(mem, nameFont);
 
-    RECT body = { 8, 6, w - 8, 90 };
-    HBRUSH paper = CreateSolidBrush(RGB(255, 255, 255));
-    FillRect(mem, &body, paper);
-    DeleteObject(paper);
-    FrameRect(mem, &body, static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
+    RECT paper = { 10, 8, w - 10, 120 };
+    HBRUSH shadow = CreateSolidBrush(RGB(40, 40, 40));
+    RECT shadowRc = { paper.left + 3, paper.top + 3, paper.right + 3, paper.bottom + 3 };
+    FillRect(mem, &shadowRc, shadow);
+    DeleteObject(shadow);
+    HBRUSH paperBr = CreateSolidBrush(RGB(255, 252, 240));
+    FillRect(mem, &paper, paperBr);
+    DeleteObject(paperBr);
+    HPEN framePen = CreatePen(PS_SOLID, 3, RGB(30, 120, 200));
+    HGDIOBJ oldPen = SelectObject(mem, framePen);
+    HBRUSH oldBr = static_cast<HBRUSH>(SelectObject(mem, GetStockObject(NULL_BRUSH)));
+    RoundRect(mem, paper.left, paper.top, paper.right, paper.bottom, 10, 10);
+    SelectObject(mem, oldPen);
+    SelectObject(mem, oldBr);
+    DeleteObject(framePen);
 
-    int spX = body.left + (body.right - body.left) / 2;
-    int spY = 22;
-    app_->Sprites().DrawScaled(mem, spX - 26, spY, 52, 52);
+    int spX = (paper.left + paper.right) / 2;
+    int spY = 24;
+    app_->Sprites().DrawScaled(mem, spX - 42, spY, 84, 84);
+
+    if (app_->Sprites().FrameWidth() <= 0) {
+        HFONT bigFont = CreateFontW(-44, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                                    OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                    DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+        SelectObject(mem, bigFont);
+        SetTextColor(mem, RGB(200, 60, 60));
+        RECT numRc = { paper.left + 20, 30, paper.right - 20, 100 };
+        DrawTextW(mem, L"67", -1, &numRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(mem, nameFont);
+        DeleteObject(bigFont);
+    }
 
     SetTextColor(mem, RGB(20, 40, 90));
     const wchar_t* name = kHideFileNames[hideIconIndex_];
-    RECT nameRc = { 8, 92, w - 8, h - 4 };
+    RECT nameRc = { 10, 96, w - 10, h - 6 };
     DrawTextW(mem, name, -1, &nameRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_PATH_ELLIPSIS);
 
     SelectObject(mem, oldFont);
