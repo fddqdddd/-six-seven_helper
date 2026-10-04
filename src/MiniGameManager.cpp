@@ -9,6 +9,9 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
+#include <cwctype>
+#include <fstream>
+#include <vector>
 
 namespace six_seven {
 
@@ -42,6 +45,17 @@ enum RpsGameCmds {
     kRpsPaper = 4302,
     kRpsScissors = 4303,
     kRpsQuit = 4304,
+};
+
+enum RiddleGameCmds {
+    kRiddleEdit = 4501,
+    kRiddleSubmit = 4502,
+    kRiddleQuit = 4503,
+};
+
+enum SnakeIds {
+    kSnakeScore = 4601,
+    kSnakeTimer = 4701,
 };
 
 void RegisterClassOnce(HINSTANCE inst, const wchar_t* name, WNDPROC proc, bool& flag)
@@ -186,6 +200,108 @@ bool MiniGameManager::RunRpsGame()
             TranslateMessage(&msg);
             DispatchMessageW(&msg);
         }
+    }
+    EnableWindow(app_->MainHwnd(), TRUE);
+    SetForegroundWindow(app_->MainHwnd());
+    return true;
+}
+
+bool MiniGameManager::RunRiddleGame()
+{
+    if (!app_ || activeGame_ != ActiveMiniGame::None)
+        return false;
+
+    RegisterClassOnce(app_->Inst(), L"SixSevenRiddleGame", RiddleGameWndProc,
+                      riddleClassRegistered_);
+
+    // Загрузить загадки: формат «вопрос|ответ» на строку.
+    struct Riddle {
+        std::wstring question;
+        std::wstring answer;
+    };
+    std::vector<Riddle> riddles;
+    const std::wstring path = AssetPath(MOD_PHRASES_DEF_RIDDLES);
+    std::ifstream in(path.c_str(), std::ios::binary);
+    std::string line;
+    while (std::getline(in, line)) {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        const size_t sep = line.find('|');
+        if (sep == std::string::npos)
+            continue;
+        const std::string q = line.substr(0, sep);
+        const std::string a = line.substr(sep + 1);
+        if (q.empty() || a.empty())
+            continue;
+        Riddle r;
+        r.question = Utf8ToWide(q.c_str());
+        r.answer = Utf8ToWide(a.c_str());
+        riddles.push_back(std::move(r));
+    }
+    if (riddles.empty()) {
+        MessageBoxW(app_->MainHwnd(), L"Загадки сегодня отдыхают. Приходи позже!",
+                    L"Загадка от 67", MB_OK | MB_ICONINFORMATION);
+        return false;
+    }
+    const Riddle& chosen = riddles[RandomInt(0, static_cast<int>(riddles.size()) - 1)];
+
+    RiddleGameData data = {};
+    data.mgr = this;
+    data.answer = chosen.answer;
+
+    HWND dlg = CreateWindowExW(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, L"SixSevenRiddleGame",
+                               L"Загадка от 67", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 372, 150, app_->MainHwnd(), nullptr,
+                               app_->Inst(), &data);
+    if (!dlg)
+        return false;
+
+    auto* ddata = static_cast<RiddleGameData*>(
+        reinterpret_cast<RiddleGameData*>(GetWindowLongPtrW(dlg, GWLP_USERDATA)));
+    if (ddata && ddata->status)
+        SetWindowTextW(ddata->status, chosen.question.c_str());
+
+    ShowWindow(dlg, SW_SHOW);
+    EnableWindow(app_->MainHwnd(), FALSE);
+
+    MSG msg = {};
+    while (IsWindow(dlg) && GetMessageW(&msg, nullptr, 0, 0)) {
+        if (!IsDialogMessageW(dlg, &msg)) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+    EnableWindow(app_->MainHwnd(), TRUE);
+    SetForegroundWindow(app_->MainHwnd());
+    return true;
+}
+
+bool MiniGameManager::RunSnakeGame()
+{
+    if (!app_ || activeGame_ != ActiveMiniGame::None)
+        return false;
+
+    RegisterClassOnce(app_->Inst(), L"SixSevenSnakeGame", SnakeGameWndProc,
+                      snakeClassRegistered_);
+
+    SnakeGameData init = {};
+    init.mgr = this;
+
+    HWND dlg = CreateWindowExW(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, L"SixSevenSnakeGame",
+                               MINIGAME_SNAKE_MENU_LABEL, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 396, 340, app_->MainHwnd(), nullptr,
+                               app_->Inst(), &init);
+    if (!dlg)
+        return false;
+
+    ShowWindow(dlg, SW_SHOW);
+    EnableWindow(app_->MainHwnd(), FALSE);
+    SetFocus(dlg);
+
+    MSG msg = {};
+    while (IsWindow(dlg) && GetMessageW(&msg, nullptr, 0, 0)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
     }
     EnableWindow(app_->MainHwnd(), TRUE);
     SetForegroundWindow(app_->MainHwnd());
@@ -1352,6 +1468,292 @@ void MiniGameManager::OnRpsMove(HWND hwnd, RpsGameData* data, int pick)
     SetWindowTextW(data->status, score);
 }
 
+LRESULT CALLBACK MiniGameManager::RiddleGameWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    auto* data = reinterpret_cast<RiddleGameData*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    switch (msg) {
+    case WM_CREATE: {
+        auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
+        const auto* init = static_cast<const RiddleGameData*>(cs->lpCreateParams);
+        data = new RiddleGameData();
+        data->mgr = init->mgr;
+        data->answer = init->answer;
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(data));
+        data->status = CreateWindowExW(0, L"STATIC", L"",
+                                       WS_CHILD | WS_VISIBLE, 16, 12, 340, 40, hwnd, nullptr,
+                                       cs->hInstance, nullptr);
+        data->edit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
+                                     WS_CHILD | WS_VISIBLE | WS_TABSTOP, 16, 58, 200, 24, hwnd,
+                                     reinterpret_cast<HMENU>(kRiddleEdit), cs->hInstance, nullptr);
+        CreateWindowExW(0, L"BUTTON", L"Ответить", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON, 226,
+                        58, 80, 26, hwnd, reinterpret_cast<HMENU>(kRiddleSubmit), cs->hInstance,
+                        nullptr);
+        CreateWindowExW(0, L"BUTTON", L"Сдаться", WS_CHILD | WS_VISIBLE, 16, 94, 80, 26, hwnd,
+                        reinterpret_cast<HMENU>(kRiddleQuit), cs->hInstance, nullptr);
+        return 0;
+    }
+    case WM_COMMAND: {
+        if (!data)
+            break;
+        if (LOWORD(wp) == kRiddleSubmit && !data->done) {
+            data->mgr->OnRiddleSubmit(hwnd, data);
+            return 0;
+        }
+        if (LOWORD(wp) == kRiddleQuit) {
+            wchar_t body[256];
+            swprintf(body, 256, L"Ответ: %s", data->answer.c_str());
+            MessageBoxW(hwnd, body, L"Загадка", MB_OK | MB_ICONINFORMATION);
+            DestroyWindow(hwnd);
+            return 0;
+        }
+        break;
+    }
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        if (data) {
+            delete data;
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+        }
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+void MiniGameManager::OnRiddleSubmit(HWND hwnd, RiddleGameData* data) const
+{
+    wchar_t buf[256] = {};
+    GetWindowTextW(data->edit, buf, 256);
+    std::wstring guess(buf);
+    std::wstring expected = data->answer;
+
+    auto trim = [](std::wstring& s) {
+        while (!s.empty() && (s.front() == L' ' || s.front() == L'\t'))
+            s.erase(s.begin());
+        while (!s.empty() && (s.back() == L' ' || s.back() == L'\t'))
+            s.pop_back();
+    };
+    trim(guess);
+    trim(expected);
+    for (wchar_t& c : guess)
+        c = static_cast<wchar_t>(towlower(c));
+    for (wchar_t& c : expected)
+        c = static_cast<wchar_t>(towlower(c));
+
+    if (guess == expected) {
+        data->done = true;
+        if (app_)
+            app_->AwardVaultFragment();
+        MessageBoxW(hwnd, L"Верно! +1 фрагмент ключа Vault для тебя. Молодец!",
+                    L"Загадка от 67", MB_OK | MB_ICONINFORMATION);
+        DestroyWindow(hwnd);
+        return;
+    }
+    SetWindowTextW(data->status, L"Хм, не то. Подумай ещё или сдайся — 67 подскажет.");
+    SetWindowTextW(data->edit, L"");
+    SetFocus(data->edit);
+}
+
+LRESULT CALLBACK MiniGameManager::SnakeGameWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    auto* data = reinterpret_cast<SnakeGameData*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    switch (msg) {
+    case WM_CREATE: {
+        auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
+        const auto* init = static_cast<const SnakeGameData*>(cs->lpCreateParams);
+        data = new SnakeGameData();
+        data->mgr = init->mgr;
+        data->snake.push_back({ MINIGAME_SNAKE_COLS / 2, MINIGAME_SNAKE_ROWS / 2 });
+        data->snake.push_back({ MINIGAME_SNAKE_COLS / 2 - 1, MINIGAME_SNAKE_ROWS / 2 });
+        data->snake.push_back({ MINIGAME_SNAKE_COLS / 2 - 2, MINIGAME_SNAKE_ROWS / 2 });
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(data));
+        data->scoreText = CreateWindowExW(0, L"STATIC", L"Счёт: 0",
+                                          WS_CHILD | WS_VISIBLE, 12, 8, 180, 20, hwnd,
+                                          reinterpret_cast<HMENU>(kSnakeScore), cs->hInstance,
+                                          nullptr);
+        SetTimer(hwnd, kSnakeTimer, MINIGAME_SNAKE_TICK_MS, nullptr);
+        return 0;
+    }
+    case WM_TIMER:
+        if (data && wp == kSnakeTimer)
+            data->mgr->OnSnakeTick(hwnd, data);
+        return 0;
+    case WM_KEYDOWN:
+        if (!data)
+            break;
+        switch (wp) {
+        case VK_UP:
+            if (data->dir.second != 1)
+                data->dir = { 0, -1 };
+            return 0;
+        case VK_DOWN:
+            if (data->dir.second != -1)
+                data->dir = { 0, 1 };
+            return 0;
+        case VK_LEFT:
+            if (data->dir.first != 1)
+                data->dir = { -1, 0 };
+            return 0;
+        case VK_RIGHT:
+            if (data->dir.first != -1)
+                data->dir = { 1, 0 };
+            return 0;
+        case VK_ESCAPE:
+            DestroyWindow(hwnd);
+            return 0;
+        }
+        break;
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        const HDC dc = BeginPaint(hwnd, &ps);
+        if (data) {
+            const int cell = MINIGAME_SNAKE_CELL;
+            const int cols = MINIGAME_SNAKE_COLS;
+            const int rows = MINIGAME_SNAKE_ROWS;
+            const RECT area = { 8, 32, 8 + cols * cell, 32 + rows * cell };
+
+            HBRUSH bg = CreateSolidBrush(RGB(18, 20, 26));
+            FillRect(dc, &area, bg);
+            DeleteObject(bg);
+
+            HPEN gridPen = CreatePen(PS_SOLID, 1, RGB(38, 42, 52));
+            HGDIOBJ oldPen = SelectObject(dc, gridPen);
+            for (int c = 1; c < cols; ++c) {
+                MoveToEx(dc, area.left + c * cell, area.top, nullptr);
+                LineTo(dc, area.left + c * cell, area.bottom);
+            }
+            for (int r = 1; r < rows; ++r) {
+                MoveToEx(dc, area.left, area.top + r * cell, nullptr);
+                LineTo(dc, area.right, area.top + r * cell);
+            }
+            SelectObject(dc, oldPen);
+            DeleteObject(gridPen);
+
+            HBRUSH body = CreateSolidBrush(RGB(74, 180, 96));
+            HBRUSH head = CreateSolidBrush(RGB(120, 220, 140));
+            for (size_t i = 0; i < data->snake.size(); ++i) {
+                const auto& seg = data->snake[i];
+                const RECT r = { area.left + seg.first * cell, area.top + seg.second * cell,
+                                 area.left + (seg.first + 1) * cell,
+                                 area.top + (seg.second + 1) * cell };
+                FillRect(dc, &r, i == 0 ? head : body);
+            }
+            DeleteObject(body);
+            DeleteObject(head);
+
+            HBRUSH apple = CreateSolidBrush(RGB(220, 70, 70));
+            const RECT a = { area.left + data->apple.first * cell, area.top + data->apple.second * cell,
+                             area.left + (data->apple.first + 1) * cell,
+                             area.top + (data->apple.second + 1) * cell };
+            FillRect(dc, &a, apple);
+            DeleteObject(apple);
+        }
+        EndPaint(hwnd, &ps);
+        return 0;
+    }
+    case WM_ERASEBKGND:
+        return 1;
+    case WM_CLOSE:
+        if (data && data->mgr)
+            data->mgr->OnSnakeEnd(hwnd, data);
+        return 0;
+    case WM_DESTROY:
+        if (data) {
+            if (data->mgr)
+                data->mgr->OnSnakeEnd(hwnd, data);
+            delete data;
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+        }
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+void MiniGameManager::OnSnakeEnd(HWND hwnd, SnakeGameData* data)
+{
+    if (data->ended)
+        return;
+    data->ended = true;
+    KillTimer(hwnd, kSnakeTimer);
+    wchar_t text[384];
+    swprintf(text, 384, L"Игра окончена! Счёт: %d.", data->score);
+    bool newRecord = false;
+    if (data->mgr)
+        newRecord = data->mgr->records_.TrySave(MINIGAME_SNAKE_ID, false, data->score);
+    if (newRecord) {
+        wcscat_s(text, L" Новый рекорд!");
+        if (data->mgr && data->mgr->app_)
+            data->mgr->app_->AwardVaultFragment();
+    }
+    MessageBoxW(hwnd, text, MINIGAME_SNAKE_MENU_LABEL, MB_OK | MB_ICONINFORMATION);
+    DestroyWindow(hwnd);
+}
+
+void MiniGameManager::OnSnakeTick(HWND hwnd, SnakeGameData* data)
+{
+    if (!data->running)
+        return;
+
+    const int cols = MINIGAME_SNAKE_COLS;
+    const int rows = MINIGAME_SNAKE_ROWS;
+
+    auto dead = [&]() {
+        if (data->mgr)
+            data->mgr->OnSnakeEnd(hwnd, data);
+    };
+
+    auto& head = data->snake.front();
+    const int nx = head.first + data->dir.first;
+    const int ny = head.second + data->dir.second;
+    if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) {
+        dead();
+        return;
+    }
+    for (const auto& seg : data->snake)
+        if (seg.first == nx && seg.second == ny) {
+            dead();
+            return;
+        }
+
+    data->snake.push_front({ nx, ny });
+    if (nx == data->apple.first && ny == data->apple.second) {
+        data->score += 1;
+        data->running = true;
+        wchar_t scoreText[64];
+        swprintf(scoreText, 64, L"Счёт: %d", data->score);
+        SetWindowTextW(data->scoreText, scoreText);
+        int attempts = 0;
+        bool freeFound = false;
+        while (attempts++ < 512 && !freeFound) {
+            const int ax = RandomInt(0, cols - 1);
+            const int ay = RandomInt(0, rows - 1);
+            bool blocked = false;
+            for (const auto& seg : data->snake)
+                if (seg.first == ax && seg.second == ay) {
+                    blocked = true;
+                    break;
+                }
+            if (!blocked) {
+                data->apple = { ax, ay };
+                freeFound = true;
+            }
+        }
+        if (!freeFound) {
+            dead();
+            return;
+        }
+    } else {
+        data->snake.pop_back();
+    }
+
+    InvalidateRect(hwnd, nullptr, FALSE);
+}
+
 void MiniGameManager::ShowRecordsDialog()
 {
     if (!app_)
@@ -1366,19 +1768,22 @@ void MiniGameManager::ShowRecordsDialog()
     const int rpsHard = records_.Get(MINIGAME_RPS_ID, true);
     const int hideNormal = records_.Get(MINIGAME_HIDE_ID, false);
     const int hideHard = records_.Get(MINIGAME_HIDE_ID, true);
-    wchar_t text[1280];
-    swprintf(text, 1280,
+    const int snakeNormal = records_.Get(MINIGAME_SNAKE_ID, false);
+    wchar_t text[1400];
+    swprintf(text, 1400,
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
+             L"%s: %d\r\n\r\n"
              L"Рекорды в файле %hs",
              MINIGAME_CLICK_RECORDS_LABEL, clickNormal, MINIGAME_CLICK_RECORDS_LABEL, clickHard,
              MINIGAME_MEMORY_RECORDS_LABEL, memNormal, MINIGAME_MEMORY_RECORDS_LABEL, memHard,
              MINIGAME_GUESS_RECORDS_LABEL, guessNormal, MINIGAME_GUESS_RECORDS_LABEL, guessHard,
              MINIGAME_RPS_RECORDS_LABEL, rpsNormal, MINIGAME_RPS_RECORDS_LABEL, rpsHard,
              MINIGAME_HIDE_RECORDS_LABEL, hideNormal, MINIGAME_HIDE_RECORDS_LABEL, hideHard,
+             MINIGAME_SNAKE_RECORDS_LABEL, snakeNormal,
              MINIGAME_RECORDS_INI);
     MessageBoxW(app_->MainHwnd(), text, L"Рекорды — мини-игры", MB_OK | MB_ICONINFORMATION);
 }

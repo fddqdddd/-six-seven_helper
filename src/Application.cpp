@@ -25,6 +25,28 @@
 
 namespace six_seven {
 
+namespace {
+
+/* Дни с 1970-01-01 по правилам Общегражданского календаря. */
+int DaysFromCivil(int y, unsigned m, unsigned d)
+{
+    y -= m <= 2;
+    const int era = (y >= 0 ? y : y - 399) / 400;
+    const unsigned yoe = static_cast<unsigned>(y - era * 400);
+    const unsigned doy = (153 * (m + (m > 2 ? -3 : 9)) + 2) / 5 + d - 1;
+    const unsigned doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    return era * 146097 + static_cast<int>(doe) - 719468;
+}
+
+int CurrentEpochDay()
+{
+    SYSTEMTIME st = {};
+    GetLocalTime(&st);
+    return DaysFromCivil(static_cast<int>(st.wYear), st.wMonth, st.wDay);
+}
+
+} /* namespace */
+
 Application* Application::instance_ = nullptr;
 
 enum TimerId {
@@ -68,6 +90,8 @@ enum MenuCmd {
     kMiniGameGuessNumber = 2103,
     kMiniGameRps = 2104,
     kMiniGameHideSeek = 2105,
+    kMiniGameRiddle = 2106,
+    kMiniGameSnake = 2107,
     kMenuRecords = 2200,
     kMenuCoolGamesLimboKeys = 2301,
     kMenuLeaveServeFile = 2401,
@@ -1296,6 +1320,7 @@ bool Application::Init(HINSTANCE inst)
     defDelayMaxMs_ = wsEarly.defDelayMaxSec * 1000;
     anger_ = wsEarly.anger;
     vaultFragments_ = wsEarly.vaultFragments;
+    lastFragmentDay_ = wsEarly.lastFragmentDay;
     nextAngerDecayAt_ = GetTickCount() + SIX_SEVEN_ANGRY_DECAY_INTERVAL_MS;
     nextAngerSaveAt_ = GetTickCount() + SIX_SEVEN_ANGRY_SAVE_EVERY_MS;
 
@@ -1862,8 +1887,35 @@ void Application::AwardVaultFragment()
     }
     vaultFragments_ += 1;
     settings_.SaveVaultFragments(vaultFragments_);
+    lastFragmentDay_ = CurrentEpochDay();
+    settings_.SaveFragmentDay(lastFragmentDay_);
     wchar_t buf[64];
     swprintf(buf, 64, L"Фрагмент ключа Vault: %d/5! Осталось чуть-чуть.", vaultFragments_);
+    SpeakNotice(buf);
+}
+
+void Application::TickVaultPatience()
+{
+    if (!startupDone_ || shuttingDown_ || miniGames_.IsActive() || firstRunActive_ ||
+        actions_.IsBusy())
+        return;
+    if (vaultFragments_ >= 5)
+        return;
+    const int today = CurrentEpochDay();
+    if (lastFragmentDay_ == 0) {
+        lastFragmentDay_ = today;
+        settings_.SaveFragmentDay(today);
+        return;
+    }
+    if (today - lastFragmentDay_ < SIX_SEVEN_VAULT_PATIENCE_DAYS)
+        return;
+    vaultFragments_ += 1;
+    lastFragmentDay_ = today;
+    settings_.SaveVaultFragments(vaultFragments_);
+    settings_.SaveFragmentDay(today);
+    wchar_t buf[96];
+    swprintf(buf, 96, L"67 оценила твоё терпение. В Vault упал фрагмент: %d/5.",
+             vaultFragments_);
     SpeakNotice(buf);
 }
 
@@ -3050,6 +3102,8 @@ void Application::ShowClickMenu(POINT screenPt)
     AppendMenuW(miniGames, MF_STRING, kMiniGameGuessNumber, MINIGAME_GUESS_MENU_LABEL);
     AppendMenuW(miniGames, MF_STRING, kMiniGameRps, MINIGAME_RPS_MENU_LABEL);
     AppendMenuW(miniGames, MF_STRING, kMiniGameHideSeek, MINIGAME_HIDE_MENU_LABEL);
+    AppendMenuW(miniGames, MF_STRING, kMiniGameRiddle, MINIGAME_RIDDLE_MENU_LABEL);
+    AppendMenuW(miniGames, MF_STRING, kMiniGameSnake, MINIGAME_SNAKE_MENU_LABEL);
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(miniGames), L"Мини-игры");
 
     HMENU records = CreatePopupMenu();
@@ -3121,6 +3175,10 @@ void Application::ShowClickMenu(POINT screenPt)
         miniGames_.RunGuessNumberGame();
     } else if (cmd == kMiniGameRps) {
         miniGames_.RunRpsGame();
+    } else if (cmd == kMiniGameRiddle) {
+        miniGames_.RunRiddleGame();
+    } else if (cmd == kMiniGameSnake) {
+        miniGames_.RunSnakeGame();
     } else if (cmd == kMiniGameHideSeek) {
         if (!miniGames_.IsActive() && !actions_.IsBusy()) {
             bool hard = false;
@@ -3192,6 +3250,7 @@ void Application::OnTimer(WPARAM timerId)
             TickCadPanic();
             TickApps();
             TickStretch();
+            TickVaultPatience();
             FireTimeActions();
             FireDefIfDue();
         }

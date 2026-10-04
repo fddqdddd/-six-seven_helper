@@ -77,6 +77,9 @@
 #define SIX_SEVEN_STRETCH_ENABLED 1
 #define SIX_SEVEN_STRETCH_PHRASE  L"Потянусь немного, ладно?"
 
+/* ========== Дыры Vault-ключа: фрагмент «за терпение» ========== */
+#define SIX_SEVEN_VAULT_PATIENCE_DAYS 3 /* дней без фрагментов, после которых 67 даёт один сама */
+
 /* ========== Спрайты: размер кадра и фон colorkey (#FF00FF magenta) ========== */
 #define SIX_SEVEN_SPRITE_WIDTH        200
 #define SIX_SEVEN_SPRITE_HEIGHT       220

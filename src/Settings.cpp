@@ -70,6 +70,8 @@ void WriteDefaultIni(const std::wstring& path)
         u8"anger=0\r\n"
         u8"; Фрагменты ключа Vault (0–5): выигрывай мини-игры.\r\n"
         u8"vault_fragments=0\r\n"
+        u8"; День (с 1970-01-01), когда был получен последний фрагмент.\r\n"
+        u8"vault_fragment_day=0\r\n"
         u8"; API-ключ DeepSeek для чата (меню «Спец. функции» → «Спросить 67 (DeepSeek)»).\r\n"
         u8"deepseek_key=\r\n";
 }
@@ -167,6 +169,10 @@ void Settings::Load(AppSettings& out)
     if (out.vaultFragments > 5)
         out.vaultFragments = 5;
 
+    out.lastFragmentDay = ReadInt(L"ai", L"vault_fragment_day", out.lastFragmentDay, ini.c_str());
+    if (out.lastFragmentDay < 0)
+        out.lastFragmentDay = 0;
+
     wchar_t keyBuf[512] = {};
     if (GetPrivateProfileStringW(L"ai", L"deepseek_key", L"", keyBuf, 512, ini.c_str()) > 0)
         out.deepseekKey = keyBuf;
@@ -223,6 +229,16 @@ void Settings::SaveVaultFragments(int fragments) const
     wchar_t buf[16];
     wsprintfW(buf, L"%d", fragments);
     WritePrivateProfileStringW(L"ai", L"vault_fragments", buf, ini.c_str());
+}
+
+void Settings::SaveFragmentDay(int day) const
+{
+    const std::wstring ini = PathJoin(GetExeDirectory(), L"six_seven.ini");
+    if (day < 0)
+        day = 0;
+    wchar_t buf[16];
+    wsprintfW(buf, L"%d", day);
+    WritePrivateProfileStringW(L"ai", L"vault_fragment_day", buf, ini.c_str());
 }
 
 void Settings::SaveDeepSeekKey(const std::wstring& key) const

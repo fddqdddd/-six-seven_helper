@@ -121,6 +121,20 @@
 #define MINIGAME_RPS_TITLE                L"Камень-ножницы-бумага"
 #define MINIGAME_RPS_HARD_CHECK_LABEL     L"Hard-mode (67 подглядывает по-крупному)"
 
+/* ========== «Загадки» (riddles) ========== */
+#define MINIGAME_RIDDLE_MENU_LABEL        L"Загадка от 67"
+#define MINIGAME_RIDDLE_TITLE             L"Загадка от 67"
+
+/* ========== «Змейка» (snake) ========== */
+#define MINIGAME_SNAKE_ID                 "snake"
+#define MINIGAME_SNAKE_MENU_LABEL         L"Змейка"
+#define MINIGAME_SNAKE_RECORDS_LABEL      L"Змейка"
+
+#define MINIGAME_SNAKE_COLS               20
+#define MINIGAME_SNAKE_ROWS               14
+#define MINIGAME_SNAKE_CELL               16 /* px */
+#define MINIGAME_SNAKE_TICK_MS           150
+
 /* ========== «Прятки» (hide_seek) ========== */
 #define MINIGAME_HIDE_ID                  "hide_seek"
 #define MINIGAME_HIDE_MENU_LABEL          L"Прятки"

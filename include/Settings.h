@@ -17,6 +17,7 @@ struct AppSettings {
     int mood = 65;
     int anger = 0;
     int vaultFragments = 0;
+    int lastFragmentDay = 0;
     std::wstring deepseekKey;
 };
 
@@ -30,6 +31,7 @@ public:
     void SaveMood(int mood) const;
     void SaveAnger(int anger) const;
     void SaveVaultFragments(int fragments) const;
+    void SaveFragmentDay(int day) const;
     void SaveDeepSeekKey(const std::wstring& key) const;
 
 private:

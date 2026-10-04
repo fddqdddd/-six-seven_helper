@@ -62,6 +62,7 @@ private:
     void TickCadPanic();
     void TickApps();
     void TickStretch();
+    void TickVaultPatience();
     void SaveAngerIfNeeded();
     void WriteServeFileToDesktop();
     void WriteGiftToDesktop();
@@ -189,6 +190,7 @@ private:
     int mood_ = 65;
     int anger_ = 0;
     int vaultFragments_ = 0;
+    int lastFragmentDay_ = 0;
     DWORD nextAngerDecayAt_ = 0;
     DWORD nextAngerSaveAt_ = 0;
     DWORD nextLoudTypingAt_ = 0;

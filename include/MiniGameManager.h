@@ -5,6 +5,8 @@
 #include "../include/MiniGameMemory.h"
 #include "../include/SpriteEngine.h"
 
+#include <deque>
+#include <utility>
 #include <windows.h>
 
 namespace six_seven {
@@ -34,6 +36,8 @@ public:
 
     bool RunGuessNumberGame();
     bool RunRpsGame();
+    bool RunRiddleGame();
+    bool RunSnakeGame();
     void ShowRecordsDialog();
     int RecordScore(bool hardMode) const;
     int MemoryRecordScore(bool hardMode) const;
@@ -84,6 +88,13 @@ private:
         bool hard = false;
         bool done = false;
     };
+    struct RiddleGameData {
+        MiniGameManager* mgr = nullptr;
+        HWND status = nullptr;
+        HWND edit = nullptr;
+        std::wstring answer;
+        bool done = false;
+    };
     struct RpsGameData {
         MiniGameManager* mgr = nullptr;
         HWND status = nullptr;
@@ -93,10 +104,25 @@ private:
         int maxRounds = 0;
         bool hard = false;
     };
+    struct SnakeGameData {
+        MiniGameManager* mgr = nullptr;
+        HWND scoreText = nullptr;
+        std::deque<std::pair<int, int>> snake;
+        std::pair<int, int> dir = { 1, 0 };
+        std::pair<int, int> apple = { 8, 6 };
+        int score = 0;
+        bool running = true;
+        bool ended = false;
+    };
     void OnGuessSubmit(HWND hwnd, GuessGameData* data) const;
     void OnRpsMove(HWND hwnd, RpsGameData* data, int pick);
+    void OnRiddleSubmit(HWND hwnd, RiddleGameData* data) const;
+    void OnSnakeTick(HWND hwnd, SnakeGameData* data);
+    void OnSnakeEnd(HWND hwnd, SnakeGameData* data);
     static LRESULT CALLBACK GuessGameWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK RpsGameWndProc(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK RiddleGameWndProc(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK SnakeGameWndProc(HWND, UINT, WPARAM, LPARAM);
 
     static LRESULT CALLBACK HudWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK HideIconWndProc(HWND, UINT, WPARAM, LPARAM);
@@ -149,6 +175,8 @@ private:
 
     bool guessClassRegistered_ = false;
     bool rpsClassRegistered_ = false;
+    bool riddleClassRegistered_ = false;
+    bool snakeClassRegistered_ = false;
 
     HWND hideIconHwnd_ = nullptr;
     HBITMAP hideIconDib_ = nullptr;
