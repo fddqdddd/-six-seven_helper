@@ -62,6 +62,11 @@
 #define SIX_SEVEN_CAD_COOLDOWN_MS              60000 /* паника на Ctrl+Alt+Del не чаще N мс */
 #define SIX_SEVEN_CAD_PANIC_PHRASE L"Я ничего не видел! Я ничего не видел!"
 
+/* ========== Злость: тревожные файлы-дразнилки на рабочем столе ========== */
+#define SIX_SEVEN_TEASE_ENABLED              1
+#define SIX_SEVEN_TEASE_MIN_ANGER            60   /* злость, с которой 67 оставляет файл */
+#define SIX_SEVEN_TEASE_COOLDOWN_MS          120000 /* не чаще, чем раз в N мс */
+
 /* ========== Спрайты: размер кадра и фон colorkey (#FF00FF magenta) ========== */
 #define SIX_SEVEN_SPRITE_WIDTH        200
 #define SIX_SEVEN_SPRITE_HEIGHT       220

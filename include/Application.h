@@ -63,6 +63,7 @@ private:
     void SaveAngerIfNeeded();
     void WriteServeFileToDesktop();
     void WriteGiftToDesktop();
+    void WriteTeaseFileToDesktop();
     void HideFilesToVault();
     void TryRestoreVault();
     void StartFirstRun();
@@ -190,6 +191,7 @@ private:
     DWORD cadDesktopSince_ = 0;
     bool onCadDesktop_ = false;
     bool cadPanicHidden_ = false;
+    DWORD nextTeaseFileAt_ = 0;
     HHOOK keyboardHook_ = nullptr;
     DWORD nextCursorCatchUntilMs_ = 0;
     DWORD nextCursorCatchAtMs_ = 0;

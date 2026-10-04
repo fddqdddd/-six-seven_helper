@@ -1392,6 +1392,7 @@ void Application::FireDefIfDue()
         return;
     if (GetTickCount() < nextDefAt_)
         return;
+    const DWORD now = GetTickCount();
     if (SIX_SEVEN_ANGRY_ENABLED && anger_ >= SIX_SEVEN_ANGRY_MISBEHAVE_MIN &&
         RandomInt(1, 100) <= 35) {
         // «Безобразия»: злой уход прогуляться со звуком.
@@ -1406,6 +1407,11 @@ void Application::FireDefIfDue()
         rage.move = true;
         rage.dictors = true;
         actions_.Run(rage);
+        if (SIX_SEVEN_TEASE_ENABLED && anger_ >= SIX_SEVEN_TEASE_MIN_ANGER &&
+            now >= nextTeaseFileAt_) {
+            WriteTeaseFileToDesktop();
+            nextTeaseFileAt_ = now + static_cast<DWORD>(SIX_SEVEN_TEASE_COOLDOWN_MS);
+        }
         ScheduleDef();
         return;
     }
@@ -1689,6 +1695,38 @@ void Application::AwardVaultFragment()
     wchar_t buf[64];
     swprintf(buf, 64, L"Фрагмент ключа Vault: %d/5! Осталось чуть-чуть.", vaultFragments_);
     SpeakNotice(buf);
+}
+
+void Application::WriteTeaseFileToDesktop()
+{
+    if (!SIX_SEVEN_TEASE_ENABLED || shuttingDown_)
+        return;
+    wchar_t desktop[MAX_PATH] = {};
+    if (FAILED(SHGetFolderPathW(nullptr, CSIDL_DESKTOPDIRECTORY, nullptr, SHGFP_TYPE_CURRENT,
+                                desktop))) {
+        return;
+    }
+    const wchar_t* names[] = {
+        L"Я_ЗНАЮ.txt",
+        L"СПИСОК_ТВОИХ_ГРЕХОВ.txt",
+        L"я_видел_больше.txt",
+        L"у_меня_есть_скриншот.png",
+    };
+    const int nameIndex = RandomInt(0, static_cast<int>(std::size(names)) - 1);
+    std::wstring path = PathJoin(desktop, names[nameIndex]);
+
+    std::wstring line = LoadRandomLine(MOD_PHRASES_DEF_ANGRY);
+    if (line.empty())
+        line = L"Я всё видела. Всё-всё.";
+    std::wstring body = line;
+    body += L"\r\n\r\n— 67";
+
+    std::ofstream out(WideToUtf8(path.c_str()).c_str(), std::ios::binary);
+    if (!out)
+        return;
+    const std::string utf8 = WideToUtf8(body.c_str());
+    out << "\xEF\xBB\xBF";
+    out.write(utf8.data(), static_cast<std::streamsize>(utf8.size()));
 }
 
 void Application::HideFilesToVault()
