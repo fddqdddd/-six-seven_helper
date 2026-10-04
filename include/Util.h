@@ -16,6 +16,7 @@ std::string WideToUtf8(const wchar_t* wide);
 std::wstring PathJoin(const std::wstring& a, const std::wstring& b);
 std::wstring AssetPath(const char* relativeUtf8);
 bool FileExists(const std::wstring& path);
+bool WriteTextFile(const std::wstring& path, const std::string& utf8Contents, bool addBom);
 int RandomInt(int minInclusive, int maxInclusive);
 const SixSevenActionDef& PickRandom(const SixSevenActionDef* arr, int count);
 

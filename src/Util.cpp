@@ -72,6 +72,30 @@ bool FileExists(const std::wstring& path)
     return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY) == 0;
 }
 
+bool WriteTextFile(const std::wstring& path, const std::string& utf8Contents, bool addBom)
+{
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE)
+        return false;
+    bool ok = true;
+    if (addBom) {
+        const char bom[] = "\xEF\xBB\xBF";
+        DWORD written = 0;
+        if (!WriteFile(h, bom, 3, &written, nullptr) || written != 3)
+            ok = false;
+    }
+    if (ok) {
+        const DWORD size = static_cast<DWORD>(utf8Contents.size());
+        DWORD written = 0;
+        if (size > 0 && (!WriteFile(h, utf8Contents.data(), size, &written, nullptr) ||
+                         written != size))
+            ok = false;
+    }
+    CloseHandle(h);
+    return ok;
+}
+
 int RandomInt(int minInclusive, int maxInclusive)
 {
     if (maxInclusive <= minInclusive)

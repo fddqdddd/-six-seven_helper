@@ -1844,10 +1844,7 @@ void Application::WriteServeFileToDesktop()
     body += "  - сколько раз хотел выключить 67:  ********\n\n";
     body += "Не бойся, friend. Я никому не скажу.\n";
     body += "Пока.\n";
-    std::ofstream out(WideToUtf8(path.c_str()).c_str(), std::ios::binary);
-    if (out) {
-        out << "\xEF\xBB\xBF";
-        out.write(body.data(), static_cast<std::streamsize>(body.size()));
+    if (WriteTextFile(path, body, true)) {
         SpeakNotice(L"Готово. Файл на столе. Проверь, друг.");
     } else {
         SpeakNotice(L"Ой, не получилось. Наверное, стол занят.");
@@ -1866,11 +1863,8 @@ void Application::WriteGiftToDesktop()
     if (text.empty())
         text = L"Подарок от 67: сегодня хорошее число!";  // ;-)
     std::wstring path = PathJoin(desktop, L"Подарок от 67.txt");
-    std::ofstream out(WideToUtf8(path.c_str()).c_str(), std::ios::binary);
-    if (out) {
-        const std::string utf8 = WideToUtf8(text.c_str());
-        out << "\xEF\xBB\xBF";
-        out.write(utf8.data(), static_cast<std::streamsize>(utf8.size()));
+    const std::string utf8 = WideToUtf8(text.c_str());
+    if (WriteTextFile(path, utf8, true)) {
         SpeakNotice(L"Подарок на столе! Открывай быстрее.");
     } else {
         SpeakNotice(L"Подарок застрял в упаковке... Попробую ещё раз позже.");
@@ -1943,12 +1937,8 @@ void Application::WriteTeaseFileToDesktop()
     std::wstring body = line;
     body += L"\r\n\r\n— 67";
 
-    std::ofstream out(WideToUtf8(path.c_str()).c_str(), std::ios::binary);
-    if (!out)
-        return;
     const std::string utf8 = WideToUtf8(body.c_str());
-    out << "\xEF\xBB\xBF";
-    out.write(utf8.data(), static_cast<std::streamsize>(utf8.size()));
+    WriteTextFile(path, utf8, true);
 }
 
 void Application::HideFilesToVault()
