@@ -98,6 +98,7 @@ private:
     static LRESULT CALLBACK AdminDialogWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK AdminPanelDialogWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK CommandsDialogWndProc(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK ChatDialogWndProc(HWND, UINT, WPARAM, LPARAM);
     static bool AcceptBirthdayDialog(HWND hwnd, BirthdayDialogData* data);
     static void LayoutBirthdayDialog(HWND hwnd, BirthdayDialogData* data);
     void RunSongByIndex(int songIndex);
@@ -116,6 +117,10 @@ private:
     void OnTerminalBlocked();
     void OnUserTerminalOpened();
     void ExecuteTerminalCommand(const std::wstring& command);
+    void ShowChatDialog();
+    std::wstring DeepSeekKeyStored();
+    void SaveDeepSeekKeyToSettings(const std::wstring& key);
+    std::wstring AskDeepSeek(const std::wstring& key, const std::wstring& question);
     void SpeakNotice(const std::wstring& text, std::function<void()> onDone = {});
     void CenterCharacterOnScreen();
     void MoveCharacterAboveDialogsOnce();

@@ -69,7 +69,9 @@ void WriteDefaultIni(const std::wstring& path)
         u8"; Злость (0–100) — накапливается, когда над 67 издеваются.\r\n"
         u8"anger=0\r\n"
         u8"; Фрагменты ключа Vault (0–5): выигрывай мини-игры.\r\n"
-        u8"vault_fragments=0\r\n";
+        u8"vault_fragments=0\r\n"
+        u8"; API-ключ DeepSeek для чата (меню «Спец. функции» → «Спросить 67 (DeepSeek)»).\r\n"
+        u8"deepseek_key=\r\n";
 }
 
 int ReadInt(const wchar_t* section, const wchar_t* key, int defaultValue, const wchar_t* ini)
@@ -164,6 +166,10 @@ void Settings::Load(AppSettings& out)
         out.vaultFragments = 0;
     if (out.vaultFragments > 5)
         out.vaultFragments = 5;
+
+    wchar_t keyBuf[512] = {};
+    if (GetPrivateProfileStringW(L"ai", L"deepseek_key", L"", keyBuf, 512, ini.c_str()) > 0)
+        out.deepseekKey = keyBuf;
 }
 
 bool Settings::IsAutostartEnabled() const
@@ -217,6 +223,12 @@ void Settings::SaveVaultFragments(int fragments) const
     wchar_t buf[16];
     wsprintfW(buf, L"%d", fragments);
     WritePrivateProfileStringW(L"ai", L"vault_fragments", buf, ini.c_str());
+}
+
+void Settings::SaveDeepSeekKey(const std::wstring& key) const
+{
+    const std::wstring ini = PathJoin(GetExeDirectory(), L"six_seven.ini");
+    WritePrivateProfileStringW(L"ai", L"deepseek_key", key.c_str(), ini.c_str());
 }
 
 void Settings::Save(int x, int y, bool mute, bool idleBreath)

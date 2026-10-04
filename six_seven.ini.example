@@ -64,3 +64,5 @@ mood=65
 anger=0
 ; Фрагменты ключа Vault (0–5): выигрывай мини-игры.
 vault_fragments=0
+; API-ключ DeepSeek для чата (меню «Спец. функции» → «Спросить 67 (DeepSeek)»).
+; deepseek_key=sk-...

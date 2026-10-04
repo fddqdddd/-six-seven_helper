@@ -38,6 +38,7 @@ set(SIX_SEVEN_SOURCES
     src/ProfileCustomizer.cpp
     src/TerminalGuard.cpp
     src/TerminalCommands.cpp
+    src/DeepSeekClient.cpp
 )
 
 add_executable(Six_Seven_BootLogo WIN32
@@ -117,6 +118,7 @@ target_link_libraries(Six_Seven PRIVATE
     comctl32
     advapi32
     secur32
+    winhttp
 )
 
 add_custom_command(TARGET Six_Seven POST_BUILD

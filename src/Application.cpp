@@ -1,4 +1,5 @@
 #include "../include/Application.h"
+#include "../include/DeepSeekClient.h"
 
 #include <windowsx.h>
 #include <commctrl.h>
@@ -73,6 +74,7 @@ enum MenuCmd {
     kMenuLeaveGift = 2402,
     kMenuVaultHide = 2403,
     kMenuVaultRestore = 2404,
+    kMenuChatDeepSeek = 2405,
 };
 
 struct NameDialogData {
@@ -103,6 +105,20 @@ struct AdminPanelData {
 
 struct CommandsDialogData {
     Application* app = nullptr;
+};
+
+enum {
+    kChatQuestionEdit = 3001,
+    kChatAnswerEdit = 3002,
+    kChatKeyEdit = 3003,
+    kChatSendButton = 3004,
+};
+
+struct ChatDialogData {
+    Application* app = nullptr;
+    HWND questionEdit = nullptr;
+    HWND answerEdit = nullptr;
+    HWND keyEdit = nullptr;
 };
 
 struct BirthdayDialogData {
@@ -583,6 +599,95 @@ LRESULT CALLBACK Application::CommandsDialogWndProc(HWND hwnd, UINT msg, WPARAM 
     case WM_COMMAND:
         if (LOWORD(wp) == IDOK) {
             DestroyWindow(hwnd);
+            return 0;
+        }
+        break;
+    case WM_CLOSE:
+        DestroyWindow(hwnd);
+        return 0;
+    case WM_DESTROY:
+        if (data) {
+            delete data;
+            SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+        }
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
+LRESULT CALLBACK Application::ChatDialogWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    auto* data = reinterpret_cast<ChatDialogData*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    switch (msg) {
+    case WM_CREATE: {
+        auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
+        data = new ChatDialogData();
+        data->app = static_cast<Application*>(cs->lpCreateParams);
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(data));
+        CreateWindowExW(0, L"STATIC", L"Вопрос для 67:", WS_CHILD | WS_VISIBLE, 12, 10, 280,
+                        18, hwnd, nullptr, cs->hInstance, nullptr);
+        data->questionEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
+                                             WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL, 12, 32,
+                                             300, 24, hwnd,
+                                             reinterpret_cast<HMENU>(kChatQuestionEdit),
+                                             cs->hInstance, nullptr);
+        CreateWindowExW(0, L"STATIC", L"Ответ 67:", WS_CHILD | WS_VISIBLE, 12, 64, 280, 18,
+                        hwnd, nullptr, cs->hInstance, nullptr);
+        data->answerEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
+                                           WS_CHILD | WS_VISIBLE | ES_MULTILINE | ES_READONLY |
+                                               WS_VSCROLL | ES_AUTOVSCROLL,
+                                           12, 86, 300, 110, hwnd,
+                                           reinterpret_cast<HMENU>(kChatAnswerEdit),
+                                           cs->hInstance, nullptr);
+        CreateWindowExW(0, L"STATIC", L"Ключ API DeepSeek (sk-...):", WS_CHILD | WS_VISIBLE, 12,
+                        206, 280, 18, hwnd, nullptr, cs->hInstance, nullptr);
+        data->keyEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
+                                        WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL, 12, 228, 300,
+                                        24, hwnd, reinterpret_cast<HMENU>(kChatKeyEdit),
+                                        cs->hInstance, nullptr);
+        CreateWindowExW(0, L"BUTTON", L"Спросить", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+                        80, 264, 90, 26, hwnd, reinterpret_cast<HMENU>(kChatSendButton),
+                        cs->hInstance, nullptr);
+        CreateWindowExW(0, L"BUTTON", L"Закрыть", WS_CHILD | WS_VISIBLE, 180, 264, 90, 26, hwnd,
+                        reinterpret_cast<HMENU>(IDCANCEL), cs->hInstance, nullptr);
+        if (data->app) {
+            const std::wstring key = data->app->DeepSeekKeyStored();
+            if (!key.empty())
+                SetWindowTextW(data->keyEdit, key.c_str());
+        }
+        return 0;
+    }
+    case WM_COMMAND:
+        if (!data)
+            break;
+        if (LOWORD(wp) == IDCANCEL || LOWORD(wp) == IDCLOSE) {
+            DestroyWindow(hwnd);
+            return 0;
+        }
+        if (LOWORD(wp) == kChatSendButton || LOWORD(wp) == IDOK) {
+            wchar_t qBuf[1024] = {};
+            GetWindowTextW(data->questionEdit, qBuf, 1024);
+            wchar_t kBuf[512] = {};
+            GetWindowTextW(data->keyEdit, kBuf, 512);
+            const std::wstring question(qBuf);
+            if (question.empty())
+                return 0;
+            std::wstring key(kBuf);
+            while (!key.empty() && (key.front() == L' ' || key.front() == L'\t'))
+                key.erase(key.begin());
+            while (!key.empty() && (key.back() == L' ' || key.back() == L'\t'))
+                key.pop_back();
+            if (!data->app)
+                return 0;
+            data->app->SaveDeepSeekKeyToSettings(key);
+            if (data->answerEdit)
+                SetWindowTextW(data->answerEdit, L"67 думает...");
+            const std::wstring answer = data->app->AskDeepSeek(key, question);
+            if (data->answerEdit)
+                SetWindowTextW(data->answerEdit, answer.c_str());
+            data->app->SpeakNotice(answer.empty() ? L"DeepSeek не ответил." : answer);
             return 0;
         }
         break;
@@ -1156,6 +1261,15 @@ bool Application::Init(HINSTANCE inst)
         cwc3.hCursor = LoadCursor(nullptr, IDC_ARROW);
         cwc3.lpszClassName = L"SixSevenCommandsDialog";
         RegisterClassExW(&cwc3);
+    }
+    {
+        WNDCLASSEXW chwc = {};
+        chwc.cbSize = sizeof(chwc);
+        chwc.lpfnWndProc = ChatDialogWndProc;
+        chwc.hInstance = inst;
+        chwc.hCursor = LoadCursor(nullptr, IDC_ARROW);
+        chwc.lpszClassName = L"SixSevenChatDialog";
+        RegisterClassExW(&chwc);
     }
 
     userInfo_.Load();
@@ -2643,6 +2757,40 @@ void Application::ShowCommandsDialog()
     RunModalUntilDestroyed(dlg);
 }
 
+void Application::ShowChatDialog()
+{
+    HWND dlg = CreateWindowExW(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, L"SixSevenChatDialog",
+                               L"Спроси 67 (DeepSeek)", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 330, 300, hwnd_, nullptr, inst_, this);
+    if (!dlg)
+        return;
+    CenterDialog(dlg, 330, 300);
+    ShowWindow(dlg, SW_SHOW);
+    UpdateWindow(dlg);
+    RunModalUntilDestroyed(dlg);
+}
+
+std::wstring Application::DeepSeekKeyStored()
+{
+    AppSettings s;
+    settings_.Load(s);
+    return s.deepseekKey;
+}
+
+void Application::SaveDeepSeekKeyToSettings(const std::wstring& key)
+{
+    settings_.SaveDeepSeekKey(key);
+}
+
+std::wstring Application::AskDeepSeek(const std::wstring& key, const std::wstring& question)
+{
+    std::wstring error;
+    std::wstring answer = DeepSeekAsk(key, question, error);
+    if (!error.empty())
+        return L"Ошибка: " + error;
+    return answer;
+}
+
 void Application::UnlockTerminalRestrictions()
 {
     if (!userInfo_.IsAdmin() || userInfo_.IsTerminalUnlocked())
@@ -2833,6 +2981,7 @@ void Application::ShowClickMenu(POINT screenPt)
     AppendMenuW(special, MF_STRING, kMenuLeaveGift, L"Оставить подарок на столе");
     AppendMenuW(special, MF_STRING, kMenuVaultHide, L"Спрятать всё со стола (Vault)");
     AppendMenuW(special, MF_STRING, kMenuVaultRestore, L"Вернуть всё из Vault");
+    AppendMenuW(special, MF_STRING, kMenuChatDeepSeek, L"Спросить 67 (DeepSeek)");
     AppendMenuW(special, MF_STRING, kMenuAdminPanel, L"Админ панель");
     HMENU coolGames = CreatePopupMenu();
     AppendMenuW(coolGames, MF_STRING, kMenuCoolGamesLimboKeys, L"Limbo Keys");
@@ -2898,6 +3047,8 @@ void Application::ShowClickMenu(POINT screenPt)
         HideFilesToVault();
     } else if (cmd == kMenuVaultRestore) {
         TryRestoreVault();
+    } else if (cmd == kMenuChatDeepSeek) {
+        ShowChatDialog();
     } else if (cmd == kMiniGameClickSixSeven) {
         if (!miniGames_.IsActive() && !actions_.IsBusy()) {
             bool hard = false;

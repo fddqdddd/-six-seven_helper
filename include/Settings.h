@@ -17,6 +17,7 @@ struct AppSettings {
     int mood = 65;
     int anger = 0;
     int vaultFragments = 0;
+    std::wstring deepseekKey;
 };
 
 class Settings {
@@ -29,6 +30,7 @@ public:
     void SaveMood(int mood) const;
     void SaveAnger(int anger) const;
     void SaveVaultFragments(int fragments) const;
+    void SaveDeepSeekKey(const std::wstring& key) const;
 
 private:
     void EnsureDefaultIni(const std::wstring& iniPath);
