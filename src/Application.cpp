@@ -70,6 +70,8 @@ enum MenuCmd {
     kMenuCoolGamesLimboKeys = 2301,
     kMenuLeaveServeFile = 2401,
     kMenuLeaveGift = 2402,
+    kMenuVaultHide = 2403,
+    kMenuVaultRestore = 2404,
 };
 
 struct NameDialogData {
@@ -1178,6 +1180,7 @@ bool Application::Init(HINSTANCE inst)
     defDelayMinMs_ = wsEarly.defDelayMinSec * 1000;
     defDelayMaxMs_ = wsEarly.defDelayMaxSec * 1000;
     anger_ = wsEarly.anger;
+    vaultFragments_ = wsEarly.vaultFragments;
     nextAngerDecayAt_ = GetTickCount() + SIX_SEVEN_ANGRY_DECAY_INTERVAL_MS;
     nextAngerSaveAt_ = GetTickCount() + SIX_SEVEN_ANGRY_SAVE_EVERY_MS;
 
@@ -1669,6 +1672,186 @@ void Application::WriteGiftToDesktop()
         SpeakNotice(L"Подарок на столе! Открывай быстрее.");
     } else {
         SpeakNotice(L"Подарок застрял в упаковке... Попробую ещё раз позже.");
+    }
+}
+
+void Application::AwardVaultFragment()
+{
+    if (shuttingDown_ || firstRunActive_)
+        return;
+    if (vaultFragments_ >= 5) {
+        SpeakNotice(L"Ключ Vault уже собран. Я очень скучаю по твоим файлам...");
+        return;
+    }
+    vaultFragments_ += 1;
+    settings_.SaveVaultFragments(vaultFragments_);
+    wchar_t buf[64];
+    swprintf(buf, 64, L"Фрагмент ключа Vault: %d/5! Осталось чуть-чуть.", vaultFragments_);
+    SpeakNotice(buf);
+}
+
+void Application::HideFilesToVault()
+{
+    if (shuttingDown_ || firstRunActive_ || miniGames_.IsActive())
+        return;
+
+    wchar_t localApp[MAX_PATH] = {};
+    if (FAILED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, SHGFP_TYPE_CURRENT,
+                                localApp)))
+        return;
+    const std::wstring vaultRoot = PathJoin(localApp, L"Six_Seven\\vault");
+    if (!CreateDirectoryW(vaultRoot.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS)
+        return;
+    SetFileAttributesW(vaultRoot.c_str(), FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
+
+    const std::wstring manifest = PathJoin(vaultRoot, L"manifest.ini");
+
+    std::vector<std::wstring> victims;
+
+    wchar_t desktop[MAX_PATH] = {};
+    if (SUCCEEDED(SHGetFolderPathW(nullptr, CSIDL_DESKTOPDIRECTORY, nullptr, SHGFP_TYPE_CURRENT,
+                                   desktop))) {
+        const std::wstring mask = PathJoin(desktop, L"*");
+        WIN32_FIND_DATAW fd = {};
+        HANDLE find = FindFirstFileW(mask.c_str(), &fd);
+        if (find != INVALID_HANDLE_VALUE) {
+            do {
+                if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                    continue;
+                if (fd.dwFileAttributes & (FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM))
+                    continue;
+                if (fd.cFileName[0] == L'.')
+                    continue;
+                victims.push_back(PathJoin(desktop, fd.cFileName));
+            } while (FindNextFileW(find, &fd));
+            FindClose(find);
+        }
+    }
+
+    int junkFromDrives = 0;
+    wchar_t winDir[MAX_PATH] = {};
+    GetWindowsDirectoryW(winDir, MAX_PATH);
+    const wchar_t systemRoot = winDir[0] ? towupper(winDir[0]) : L'C';
+    const wchar_t desktopRoot = desktop[0] ? towupper(desktop[0]) : L'C';
+    const DWORD driveMask = GetLogicalDrives();
+    for (int drive = 0; drive < 26 && junkFromDrives < 6; ++drive) {
+        if (!(driveMask & (1u << drive)))
+            continue;
+        const wchar_t letter = static_cast<wchar_t>(L'A' + drive);
+        const wchar_t root[4] = { letter, L':', L'\\', L'\0' };
+        if (GetDriveTypeW(root) != DRIVE_FIXED)
+            continue;
+        if (towupper(letter) == systemRoot || towupper(letter) == desktopRoot)
+            continue;
+        const wchar_t* junkPatterns[] = { L"*.tmp", L"*.log", L"*.bak", L"*.old" };
+        for (const auto* pat : junkPatterns) {
+            WIN32_FIND_DATAW fd = {};
+            HANDLE find = FindFirstFileW(PathJoin(root, pat).c_str(), &fd);
+            if (find == INVALID_HANDLE_VALUE)
+                continue;
+            do {
+                if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                    continue;
+                if (junkFromDrives >= 6)
+                    break;
+                victims.push_back(PathJoin(root, fd.cFileName));
+                junkFromDrives += 1;
+            } while (FindNextFileW(find, &fd));
+            FindClose(find);
+            if (junkFromDrives >= 6)
+                break;
+        }
+    }
+
+    if (victims.empty()) {
+        SpeakNotice(L"На столе ничего мусорного — я даже расстроилась.");
+        return;
+    }
+
+    int moved = 0;
+    int index = 0;
+    wchar_t key[16];
+    for (const auto& src : victims) {
+        wchar_t stored[32];
+        wsprintfW(stored, L"f%04d", index++);
+        const std::wstring dst = PathJoin(vaultRoot, stored);
+        if (!MoveFileExW(src.c_str(), dst.c_str(),
+                         MOVEFILE_COPY_ALLOWED | MOVEFILE_WRITE_THROUGH))
+            continue;
+        wsprintfW(key, L"f%04d", index - 1);
+        WritePrivateProfileStringW(L"files", key, src.c_str(), manifest.c_str());
+        moved += 1;
+    }
+
+    if (moved <= 0) {
+        SpeakNotice(L"Файлы заперты другими программами. Попробую позже.");
+        return;
+    }
+
+    wchar_t body[512];
+    swprintf(body, 512, L"УДАЛЕНО.\r\n\r\nСобрано %d мусорных файлов 🙂\r\n\r\n"
+                        L"ШестьСемь припрятала их в безопасный сейф.\r\n"
+                        L"Вернуть всё можно ключом из 5 фрагментов.\r\n"
+                        L"Фрагменты выдаются за победы в мини-играх.", moved);
+    MessageBeep(MB_ICONEXCLAMATION);
+    MessageBoxW(hwnd_, L"УДАЛЕНО", body, MB_OK | MB_ICONWARNING);
+
+    wchar_t buf[96];
+    swprintf(buf, 96, L"Готово: спрятано файлов — %d. Спрашивай, как вернуть.", moved);
+    SpeakNotice(buf);
+}
+
+void Application::TryRestoreVault()
+{
+    if (shuttingDown_ || firstRunActive_ || miniGames_.IsActive())
+        return;
+
+    wchar_t localApp[MAX_PATH] = {};
+    if (FAILED(SHGetFolderPathW(nullptr, CSIDL_LOCAL_APPDATA, nullptr, SHGFP_TYPE_CURRENT,
+                                localApp)))
+        return;
+    const std::wstring vaultRoot = PathJoin(localApp, L"Six_Seven\\vault");
+    const std::wstring manifest = PathJoin(vaultRoot, L"manifest.ini");
+    if (!FileExists(manifest)) {
+        SpeakNotice(L"Сейф пуст — прятать было нечего.");
+        return;
+    }
+
+    if (vaultFragments_ < 5) {
+        wchar_t buf[96];
+        swprintf(buf, 96, L"Нужен ключ: %d/5 фрагментов. Выигрывай мини-игры!", vaultFragments_);
+        SpeakNotice(buf);
+        return;
+    }
+
+    int restored = 0;
+    int index = 0;
+    wchar_t key[16];
+    for (; index < 2048; ++index) {
+        wsprintfW(key, L"f%04d", index);
+        wchar_t orig[MAX_PATH] = {};
+        if (GetPrivateProfileStringW(L"files", key, L"", orig, MAX_PATH,
+                                     manifest.c_str()) == 0)
+            continue;
+        const std::wstring src = PathJoin(vaultRoot, key);
+        if (!FileExists(src))
+            continue;
+        if (FileExists(orig))
+            continue;
+        if (!MoveFileExW(src.c_str(), orig, MOVEFILE_COPY_ALLOWED | MOVEFILE_WRITE_THROUGH))
+            continue;
+        restored += 1;
+    }
+
+    if (restored > 0) {
+        DeleteFileW(manifest.c_str());
+        vaultFragments_ = 0;
+        settings_.SaveVaultFragments(0);
+        wchar_t buf[96];
+        swprintf(buf, 96, L"Ничего не удалялось — я просто шутила! Вернула файлов: %d.", restored);
+        SpeakNotice(buf);
+    } else {
+        SpeakNotice(L"Вернуть не получилось: файлы на месте или заняты.");
     }
 }
 
@@ -2609,6 +2792,8 @@ void Application::ShowClickMenu(POINT screenPt)
         AppendMenuW(special, MF_STRING, kMenuRestartOnboarding, L"Познакомиться заново");
     AppendMenuW(special, MF_STRING, kMenuLeaveServeFile, L"Оставить «Я_вижу_всё.txt»");
     AppendMenuW(special, MF_STRING, kMenuLeaveGift, L"Оставить подарок на столе");
+    AppendMenuW(special, MF_STRING, kMenuVaultHide, L"Спрятать всё со стола (Vault)");
+    AppendMenuW(special, MF_STRING, kMenuVaultRestore, L"Вернуть всё из Vault");
     AppendMenuW(special, MF_STRING, kMenuAdminPanel, L"Админ панель");
     HMENU coolGames = CreatePopupMenu();
     AppendMenuW(coolGames, MF_STRING, kMenuCoolGamesLimboKeys, L"Limbo Keys");
@@ -2665,6 +2850,10 @@ void Application::ShowClickMenu(POINT screenPt)
         WriteServeFileToDesktop();
     } else if (cmd == kMenuLeaveGift) {
         WriteGiftToDesktop();
+    } else if (cmd == kMenuVaultHide) {
+        HideFilesToVault();
+    } else if (cmd == kMenuVaultRestore) {
+        TryRestoreVault();
     } else if (cmd == kMiniGameClickSixSeven) {
         if (!miniGames_.IsActive() && !actions_.IsBusy()) {
             bool hard = false;

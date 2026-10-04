@@ -38,6 +38,7 @@ public:
     MiniGameManager& MiniGames() { return miniGames_; }
     AudioEngine& Audio() { return audio_; }
     void AllowAppTerminal(unsigned count = 1);
+    void AwardVaultFragment();
 
 private:
     static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -62,6 +63,8 @@ private:
     void SaveAngerIfNeeded();
     void WriteServeFileToDesktop();
     void WriteGiftToDesktop();
+    void HideFilesToVault();
+    void TryRestoreVault();
     void StartFirstRun();
     void OnFirstRunWake();
     void OnFirstRunAppearanceDone();
@@ -177,6 +180,7 @@ private:
     DWORD nextDefAt_ = 0;
     int mood_ = 65;
     int anger_ = 0;
+    int vaultFragments_ = 0;
     DWORD nextAngerDecayAt_ = 0;
     DWORD nextAngerSaveAt_ = 0;
     DWORD nextLoudTypingAt_ = 0;

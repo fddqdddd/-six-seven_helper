@@ -971,6 +971,8 @@ void MemoryShellGame::EndGame(bool win)
     const bool restorePos = savedWinPos_;
     const bool newRecord =
         records_ && finalScore > 0 && records_->TrySave(MINIGAME_MEMORY_ID, hard, finalScore);
+    if (newRecord && app_)
+        app_->AwardVaultFragment();
 
     Stop();
 

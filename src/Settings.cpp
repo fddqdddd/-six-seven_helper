@@ -67,7 +67,9 @@ void WriteDefaultIni(const std::wstring& path)
         u8"; Программа обновляет его сама по времени суток и праздникам.\r\n"
         u8"mood=65\r\n"
         u8"; Злость (0–100) — накапливается, когда над 67 издеваются.\r\n"
-        u8"anger=0\r\n";
+        u8"anger=0\r\n"
+        u8"; Фрагменты ключа Vault (0–5): выигрывай мини-игры.\r\n"
+        u8"vault_fragments=0\r\n";
 }
 
 int ReadInt(const wchar_t* section, const wchar_t* key, int defaultValue, const wchar_t* ini)
@@ -156,6 +158,12 @@ void Settings::Load(AppSettings& out)
         out.anger = 0;
     if (out.anger > 100)
         out.anger = 100;
+
+    out.vaultFragments = ReadInt(L"ai", L"vault_fragments", out.vaultFragments, ini.c_str());
+    if (out.vaultFragments < 0)
+        out.vaultFragments = 0;
+    if (out.vaultFragments > 5)
+        out.vaultFragments = 5;
 }
 
 bool Settings::IsAutostartEnabled() const
@@ -197,6 +205,18 @@ void Settings::SaveAnger(int anger) const
     wchar_t buf[16];
     wsprintfW(buf, L"%d", anger);
     WritePrivateProfileStringW(L"ai", L"anger", buf, ini.c_str());
+}
+
+void Settings::SaveVaultFragments(int fragments) const
+{
+    const std::wstring ini = PathJoin(GetExeDirectory(), L"six_seven.ini");
+    if (fragments < 0)
+        fragments = 0;
+    if (fragments > 5)
+        fragments = 5;
+    wchar_t buf[16];
+    wsprintfW(buf, L"%d", fragments);
+    WritePrivateProfileStringW(L"ai", L"vault_fragments", buf, ini.c_str());
 }
 
 void Settings::Save(int x, int y, bool mute, bool idleBreath)

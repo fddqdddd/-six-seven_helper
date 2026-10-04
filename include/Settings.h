@@ -16,6 +16,7 @@ struct AppSettings {
     int bubbleMaxLines = 6;
     int mood = 65;
     int anger = 0;
+    int vaultFragments = 0;
 };
 
 class Settings {
@@ -27,6 +28,7 @@ public:
 
     void SaveMood(int mood) const;
     void SaveAnger(int anger) const;
+    void SaveVaultFragments(int fragments) const;
 
 private:
     void EnsureDefaultIni(const std::wstring& iniPath);

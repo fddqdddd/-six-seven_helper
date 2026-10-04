@@ -752,6 +752,8 @@ void MiniGameManager::EndGame()
     Stop();
 
     const bool newRecord = records_.TrySave(MINIGAME_CLICK_ID, hard, finalScore);
+    if (newRecord && app_)
+        app_->AwardVaultFragment();
 
     wchar_t timeBuf[32];
     FormatTime(timeBuf, 32, elapsed);
@@ -893,6 +895,8 @@ void MiniGameManager::OnGuessSubmit(HWND hwnd, GuessGameData* data) const
         SetWindowTextW(data->status, text);
         if (data->mgr && data->streak > 0)
             data->mgr->records_.TrySave(MINIGAME_GUESS_ID, data->hard, data->streak);
+        if (data->mgr && data->mgr->app_ && data->streak > 0)
+            data->mgr->app_->AwardVaultFragment();
         data->done = true;
         PostMessageW(hwnd, WM_CLOSE, 0, 0);
     } else {
@@ -1005,6 +1009,8 @@ void MiniGameManager::OnRpsMove(HWND hwnd, RpsGameData* data, int pick)
         if (data->userWins > data->cpuWins && data->mgr)
             if (data->mgr->records_.TrySave(MINIGAME_RPS_ID, data->hard, data->userWins))
                 wcscat_s(result, L"\r\nНовый рекорд!");
+        if (data->userWins > data->cpuWins && data->mgr && data->mgr->app_)
+            data->mgr->app_->AwardVaultFragment();
         MessageBoxW(hwnd, result, MINIGAME_RPS_TITLE, MB_OK | MB_ICONINFORMATION);
         DestroyWindow(hwnd);
         return;
