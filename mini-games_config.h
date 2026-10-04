@@ -121,4 +121,30 @@
 #define MINIGAME_RPS_TITLE                L"Камень-ножницы-бумага"
 #define MINIGAME_RPS_HARD_CHECK_LABEL     L"Hard-mode (67 подглядывает по-крупному)"
 
+/* ========== «Прятки» (hide_seek) ========== */
+#define MINIGAME_HIDE_ID                  "hide_seek"
+#define MINIGAME_HIDE_MENU_LABEL          L"Прятки"
+#define MINIGAME_HIDE_RECORDS_LABEL       L"Прятки"
+
+#define MINIGAME_HIDE_TIME_SEC            45  /* обычный режим, сек */
+#define MINIGAME_HIDE_HARD_TIME_SEC       30  /* hard-mode, сек */
+#define MINIGAME_HIDE_MOVE_INTERVAL_MS    2600 /* пауза между прыжками */
+#define MINIGAME_HIDE_HARD_MOVE_MS        1200 /* hard-mode: прячется быстрее */
+
+#define MINIGAME_HIDE_NAME_BAND_H         26  /* полоса с именем файла */
+
+#define MINIGAME_HIDE_PRESTART_TITLE      L"Прятки"
+#define MINIGAME_HIDE_PRESTART_TEXT \
+    L"67 превратилась в иконку-файл и спряталась где-то на экране!\r\n" \
+    L"Найди её и кликни по файлу. Чем больше найдёшь — тем лучше."
+
+#define MINIGAME_HIDE_HARD_CHECK_LABEL \
+    L"Глубины пряток (быстрее меняет место, файлы в папках)"
+
+#define MINIGAME_HIDE_END_TITLE           L"Прятки — результат"
+#define MINIGAME_HIDE_END_TEXT \
+    L"Время вышло! 67 успела спрятаться хорошо."
+
+#define MINIGAME_HIDE_FOUND_TEXT          L"Нашёл!"
+
 #endif /* SIX_SEVEN_MINI_GAMES_CONFIG_H */

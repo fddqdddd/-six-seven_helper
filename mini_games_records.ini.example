@@ -16,3 +16,7 @@ hard=0
 [rock_paper_scissors]
 normal=0
 hard=0
+
+[hide_seek]
+normal=0
+hard=0

@@ -9,7 +9,7 @@
 
 namespace six_seven {
 
-enum class ActiveMiniGame { None, Click, Memory };
+enum class ActiveMiniGame { None, Click, Memory, HideSeek };
 
 class Application;
 
@@ -26,17 +26,20 @@ public:
     bool ShowPreStartDialog(bool* hardModeOut);
     void StartClickSixSeven(bool hardMode);
 
+    bool ShowHidePreStartDialog(bool* hardModeOut);
+    void StartHideSeek(bool hardMode);
+
     bool ShowMemoryPreStartDialog(bool* hardModeOut);
     void StartMemoryShell(bool hardMode);
 
     bool RunGuessNumberGame();
     bool RunRpsGame();
-
     void ShowRecordsDialog();
     int RecordScore(bool hardMode) const;
     int MemoryRecordScore(bool hardMode) const;
     int GuessRecordScore(bool hardMode) const;
     int RpsRecordScore(bool hardMode) const;
+    int HideRecordScore(bool hardMode) const;
 
     void Stop();
 
@@ -49,6 +52,12 @@ private:
     struct GameHost;
 
     void TeleportCharacter();
+    void TeleportHideIcon();
+    void PaintHideIcon();
+    void CreateHideIcon();
+    void DestroyHideIcon();
+    void EndHideGame();
+    void OnHideIconClick();
     void UpdateHud();
     void PaintHud();
     void CreateHud();
@@ -90,9 +99,14 @@ private:
     static LRESULT CALLBACK RpsGameWndProc(HWND, UINT, WPARAM, LPARAM);
 
     static LRESULT CALLBACK HudWndProc(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK HideIconWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK GrayWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK GlitchSpriteWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK PreStartWndProc(HWND, UINT, WPARAM, LPARAM);
+
+    const wchar_t* preStartTitle_ = nullptr;
+    const wchar_t* preStartText_ = nullptr;
+    const wchar_t* preStartHardLabel_ = nullptr;
 
     Application* app_ = nullptr;
     MiniGameRecords records_;
@@ -135,6 +149,14 @@ private:
 
     bool guessClassRegistered_ = false;
     bool rpsClassRegistered_ = false;
+
+    HWND hideIconHwnd_ = nullptr;
+    HBITMAP hideIconDib_ = nullptr;
+    void* hideIconDibBits_ = nullptr;
+    HDC hideIconDibDc_ = nullptr;
+    bool hideIconClassRegistered_ = false;
+    DWORD hideNextMoveMs_ = 0;
+    int hideIconIndex_ = 0;
 };
 
 } /* namespace six_seven */

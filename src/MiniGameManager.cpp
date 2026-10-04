@@ -89,6 +89,11 @@ int MiniGameManager::RpsRecordScore(bool hardMode) const
     return records_.Get(MINIGAME_RPS_ID, hardMode);
 }
 
+int MiniGameManager::HideRecordScore(bool hardMode) const
+{
+    return records_.Get(MINIGAME_HIDE_ID, hardMode);
+}
+
 bool MiniGameManager::RunGuessNumberGame()
 {
     if (!app_ || activeGame_ != ActiveMiniGame::None)
@@ -245,10 +250,14 @@ LRESULT CALLBACK MiniGameManager::PreStartWndProc(HWND hwnd, UINT msg, WPARAM wp
         auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
         mgr = static_cast<MiniGameManager*>(cs->lpCreateParams);
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(mgr));
-        CreateWindowExW(0, L"STATIC", MINIGAME_CLICK_PRESTART_TEXT,
-                        WS_CHILD | WS_VISIBLE, 16, 12, 340, 72, hwnd, nullptr, cs->hInstance,
-                        nullptr);
-        CreateWindowExW(0, L"BUTTON", MINIGAME_CLICK_HARD_CHECK_LABEL,
+        const wchar_t* text = mgr && mgr->preStartText_ ? mgr->preStartText_
+                                                        : MINIGAME_CLICK_PRESTART_TEXT;
+        const wchar_t* hardLabel =
+            mgr && mgr->preStartHardLabel_ ? mgr->preStartHardLabel_
+                                           : MINIGAME_CLICK_HARD_CHECK_LABEL;
+        CreateWindowExW(0, L"STATIC", text, WS_CHILD | WS_VISIBLE, 16, 12, 340, 72, hwnd,
+                        nullptr, cs->hInstance, nullptr);
+        CreateWindowExW(0, L"BUTTON", hardLabel,
                         WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX, 16, 92, 320, 22, hwnd,
                         reinterpret_cast<HMENU>(kPreStartHardCheck), cs->hInstance, nullptr);
         CreateWindowExW(0, L"BUTTON", L"Старт", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON, 72, 128,
@@ -289,12 +298,50 @@ bool MiniGameManager::ShowPreStartDialog(bool* hardModeOut)
 
     preStartStarted_ = false;
     preStartHard_ = false;
+    preStartTitle_ = MINIGAME_CLICK_PRESTART_TITLE;
+    preStartText_ = MINIGAME_CLICK_PRESTART_TEXT;
+    preStartHardLabel_ = MINIGAME_CLICK_HARD_CHECK_LABEL;
 
-    HWND dlg =
-        CreateWindowExW(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, L"SixSevenMiniPreStart",
-                        MINIGAME_CLICK_PRESTART_TITLE, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
-                        CW_USEDEFAULT, CW_USEDEFAULT, 380, 200, app_->MainHwnd(), nullptr,
-                        app_->Inst(), this);
+    HWND dlg = CreateWindowExW(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, L"SixSevenMiniPreStart",
+                               preStartTitle_, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 380, 200, app_->MainHwnd(), nullptr,
+                               app_->Inst(), this);
+    if (!dlg)
+        return false;
+    ShowWindow(dlg, SW_SHOW);
+    EnableWindow(app_->MainHwnd(), FALSE);
+
+    MSG msg = {};
+    while (IsWindow(dlg) && GetMessageW(&msg, nullptr, 0, 0)) {
+        if (!IsDialogMessageW(dlg, &msg)) {
+            TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+    }
+    EnableWindow(app_->MainHwnd(), TRUE);
+    SetForegroundWindow(app_->MainHwnd());
+    if (preStartStarted_)
+        *hardModeOut = preStartHard_;
+    return preStartStarted_;
+}
+
+bool MiniGameManager::ShowHidePreStartDialog(bool* hardModeOut)
+{
+    if (!app_ || !hardModeOut)
+        return false;
+    RegisterClassOnce(app_->Inst(), L"SixSevenMiniPreStart", PreStartWndProc,
+                      preStartClassRegistered_);
+
+    preStartStarted_ = false;
+    preStartHard_ = false;
+    preStartTitle_ = MINIGAME_HIDE_PRESTART_TITLE;
+    preStartText_ = MINIGAME_HIDE_PRESTART_TEXT;
+    preStartHardLabel_ = MINIGAME_HIDE_HARD_CHECK_LABEL;
+
+    HWND dlg = CreateWindowExW(WS_EX_DLGMODALFRAME | WS_EX_TOPMOST, L"SixSevenMiniPreStart",
+                               preStartTitle_, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 380, 200, app_->MainHwnd(), nullptr,
+                               app_->Inst(), this);
     if (!dlg)
         return false;
     ShowWindow(dlg, SW_SHOW);
@@ -718,6 +765,268 @@ void MiniGameManager::StartClickSixSeven(bool hardMode)
     app_->RepaintMain();
 }
 
+void MiniGameManager::StartHideSeek(bool hardMode)
+{
+    if (!app_ || activeGame_ != ActiveMiniGame::None)
+        return;
+    app_->Actions().Cancel();
+    app_->Bubble().Clear();
+
+    hardMode_ = hardMode;
+    score_ = 0;
+    const DWORD durationSec =
+        hardMode_ ? static_cast<DWORD>(MINIGAME_HIDE_HARD_TIME_SEC)
+                  : static_cast<DWORD>(MINIGAME_HIDE_TIME_SEC);
+    startMs_ = GetTickCount();
+    endMs_ = startMs_ + durationSec * 1000;
+    lastMoveMs_ = 0;
+    lastHudMs_ = 0;
+    hideIconIndex_ = 0;
+
+    app_->Sprites().SetSprite(
+        hardMode_ ? MOD_SPRITE_MINIGAME_CLICK_SIX_SEVEN_HARD
+                  : MOD_SPRITE_MINIGAME_CLICK_SIX_SEVEN,
+        false);
+
+    RECT rc = {};
+    GetWindowRect(app_->MainHwnd(), &rc);
+    savedWinLeft_ = rc.left;
+    savedWinTop_ = rc.top;
+    savedWinPos_ = true;
+
+    activeGame_ = ActiveMiniGame::HideSeek;
+    CreateHud();
+    CreateHideIcon();
+    TeleportHideIcon();
+    lastMoveMs_ = GetTickCount();
+    hideNextMoveMs_ = GetTickCount() + static_cast<DWORD>(MINIGAME_HIDE_MOVE_INTERVAL_MS);
+
+    ShowWindow(app_->MainHwnd(), SW_HIDE);
+
+    if (hardMode_) {
+        const DWORD now = GetTickCount();
+        nextGrayGlitchMs_ = now + static_cast<DWORD>(MINIGAME_GLITCH_GRAY_INTERVAL_MS);
+        nextSpriteGlitchMs_ = now + static_cast<DWORD>(MINIGAME_GLITCH_SPRITE_INTERVAL_MS);
+    } else {
+        nextGrayGlitchMs_ = 0;
+        nextSpriteGlitchMs_ = 0;
+    }
+    UpdateHud();
+}
+
+static const wchar_t* kHideFileNames[] = {
+    L"важное_документы.png",
+    L"никак_не_открывать.exe",
+    L"планы_на_пятницу.txt",
+    L"фото_кота.jpg",
+    L"список_дел.docx",
+    L"не_трогай_это.zip",
+    L"мой_пароль (шутка).txt",
+    L"рецепт_пельменей.png",
+    L"домашка_по_физике.pdf",
+    L"люблю_тебя_friend.png",
+};
+
+void MiniGameManager::CreateHideIcon()
+{
+    if (!app_ || hideIconHwnd_)
+        return;
+    RegisterClassOnce(app_->Inst(), L"SixSevenHideIcon", HideIconWndProc,
+                      hideIconClassRegistered_);
+
+    const int w = 120;
+    const int h = 120;
+    BITMAPINFO bi = {};
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = w;
+    bi.bmiHeader.biHeight = -h;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    HDC screen = GetDC(nullptr);
+    hideIconDib_ = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &hideIconDibBits_, nullptr, 0);
+    hideIconDibDc_ = CreateCompatibleDC(screen);
+    SelectObject(hideIconDibDc_, hideIconDib_);
+    ReleaseDC(nullptr, screen);
+
+    hideIconHwnd_ = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+                                    L"SixSevenHideIcon", L"", WS_POPUP, 0, 0, w, h, nullptr,
+                                    nullptr, app_->Inst(), this);
+    if (hideIconHwnd_)
+        ShowWindow(hideIconHwnd_, SW_SHOWNA);
+}
+
+void MiniGameManager::DestroyHideIcon()
+{
+    if (hideIconHwnd_) {
+        DestroyWindow(hideIconHwnd_);
+        hideIconHwnd_ = nullptr;
+    }
+    if (hideIconDibDc_) {
+        DeleteDC(hideIconDibDc_);
+        hideIconDibDc_ = nullptr;
+    }
+    if (hideIconDib_) {
+        DeleteObject(hideIconDib_);
+        hideIconDib_ = nullptr;
+    }
+    hideIconDibBits_ = nullptr;
+}
+
+void MiniGameManager::TeleportHideIcon()
+{
+    if (!hideIconHwnd_ || !app_)
+        return;
+    hideIconIndex_ = (hideIconIndex_ + 1) % static_cast<int>(std::size(kHideFileNames));
+    if (hideIconIndex_ < 0)
+        hideIconIndex_ = 0;
+
+    const int w = 120;
+    const int h = 96 + MINIGAME_HIDE_NAME_BAND_H;
+    const RECT wa = GetCombinedWorkArea();
+    const int minY = wa.top + 20;
+    const int maxY = wa.bottom - h - 20;
+    const int maxX = wa.right - w - 20;
+    const int spanY = maxY > minY ? maxY - minY : 1;
+    const int spanX = maxX - wa.left - 20;
+    int x = wa.left + 20 + RandomInt(0, spanX > 0 ? spanX : 1);
+    int y = minY + RandomInt(0, spanY);
+    SetWindowPos(hideIconHwnd_, HWND_TOPMOST, x, y, w, h,
+                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
+    PaintHideIcon();
+}
+
+void MiniGameManager::PaintHideIcon()
+{
+    if (!hideIconHwnd_ || !hideIconDibDc_ || !hideIconDibBits_ || !app_)
+        return;
+    const int w = 120;
+    const int h = 96 + MINIGAME_HIDE_NAME_BAND_H;
+    auto* px = static_cast<BYTE*>(hideIconDibBits_);
+    std::memset(px, 0, static_cast<size_t>(w) * h * 4);
+
+    HDC mem = hideIconDibDc_;
+    SetBkMode(mem, TRANSPARENT);
+    HFONT nameFont = CreateFontW(-15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+                                 OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
+                                 DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+    HGDIOBJ oldFont = SelectObject(mem, nameFont);
+
+    RECT body = { 8, 6, w - 8, 90 };
+    HBRUSH paper = CreateSolidBrush(RGB(255, 255, 255));
+    FillRect(mem, &body, paper);
+    DeleteObject(paper);
+    FrameRect(mem, &body, static_cast<HBRUSH>(GetStockObject(BLACK_BRUSH)));
+
+    int spX = body.left + (body.right - body.left) / 2;
+    int spY = 22;
+    app_->Sprites().DrawScaled(mem, spX - 26, spY, 52, 52);
+
+    SetTextColor(mem, RGB(20, 40, 90));
+    const wchar_t* name = kHideFileNames[hideIconIndex_];
+    RECT nameRc = { 8, 92, w - 8, h - 4 };
+    DrawTextW(mem, name, -1, &nameRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_PATH_ELLIPSIS);
+
+    SelectObject(mem, oldFont);
+    DeleteObject(nameFont);
+
+    for (int y = 0; y < h; ++y) {
+        for (int x = 0; x < w; ++x) {
+            BYTE* p = px + (static_cast<size_t>(y) * w + x) * 4;
+            p[3] = 255;
+        }
+    }
+
+    POINT ptSrc = { 0, 0 };
+    SIZE size = { w, h };
+    BLENDFUNCTION blend = {};
+    blend.BlendOp = AC_SRC_OVER;
+    blend.SourceConstantAlpha = 255;
+    blend.AlphaFormat = AC_SRC_ALPHA;
+    POINT ptDst = {};
+    RECT wr = {};
+    GetWindowRect(hideIconHwnd_, &wr);
+    ptDst.x = wr.left;
+    ptDst.y = wr.top;
+    HDC screen = GetDC(nullptr);
+    UpdateLayeredWindow(hideIconHwnd_, screen, &ptDst, &size, hideIconDibDc_, &ptSrc, 0, &blend,
+                        ULW_ALPHA);
+    ReleaseDC(nullptr, screen);
+}
+
+void MiniGameManager::OnHideIconClick()
+{
+    if (activeGame_ != ActiveMiniGame::HideSeek || !app_)
+        return;
+    score_ += 1;
+    TeleportHideIcon();
+    hideNextMoveMs_ = GetTickCount() +
+                      (hardMode_ ? static_cast<DWORD>(MINIGAME_HIDE_HARD_MOVE_MS)
+                                 : static_cast<DWORD>(MINIGAME_HIDE_MOVE_INTERVAL_MS));
+    UpdateHud();
+}
+
+void MiniGameManager::EndHideGame()
+{
+    if (activeGame_ != ActiveMiniGame::HideSeek || !app_)
+        return;
+    const int finalScore = score_;
+    const bool hard = hardMode_;
+    const DWORD elapsed = GetTickCount() - startMs_;
+    const int restoreX = savedWinLeft_;
+    const int restoreY = savedWinTop_;
+    const bool restorePos = savedWinPos_;
+
+    DestroyHideIcon();
+    activeGame_ = ActiveMiniGame::None;
+    DestroyHud();
+    StopHardGlitches();
+
+    const bool newRecord = records_.TrySave(MINIGAME_HIDE_ID, hard, finalScore);
+    if (newRecord)
+        app_->AwardVaultFragment();
+
+    wchar_t timeBuf[32];
+    FormatTime(timeBuf, 32, elapsed);
+
+    wchar_t body[768];
+    swprintf(body, 768, L"%s\r\n\r\nНайдено: %d\r\nВремя игры: %s",
+             MINIGAME_HIDE_END_TEXT, finalScore, timeBuf);
+    if (newRecord)
+        wcscat_s(body, MINIGAME_CLICK_NEW_RECORD_SUFFIX);
+
+    MessageBoxW(app_->MainHwnd(), body, MINIGAME_HIDE_END_TITLE, MB_OK | MB_ICONINFORMATION);
+
+    if (restorePos) {
+        SetWindowPos(app_->MainHwnd(), HWND_TOPMOST, restoreX, restoreY, 0, 0,
+                     SWP_NOSIZE | SWP_NOACTIVATE);
+    }
+    ShowWindow(app_->MainHwnd(), SW_SHOW);
+    app_->ReturnToIdleSprite();
+}
+
+LRESULT CALLBACK MiniGameManager::HideIconWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    auto* mgr = reinterpret_cast<MiniGameManager*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    switch (msg) {
+    case WM_CREATE: {
+        auto* cs = reinterpret_cast<CREATESTRUCTW*>(lp);
+        mgr = static_cast<MiniGameManager*>(cs->lpCreateParams);
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(mgr));
+        return 0;
+    }
+    case WM_LBUTTONDOWN:
+        if (mgr)
+            mgr->OnHideIconClick();
+        return 0;
+    case WM_DESTROY:
+        SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
+        return 0;
+    default:
+        break;
+    }
+    return DefWindowProcW(hwnd, msg, wp, lp);
+}
+
 bool MiniGameManager::OnCharacterClick(int clientX, int clientY)
 {
     if (activeGame_ != ActiveMiniGame::Click || !app_)
@@ -780,6 +1089,7 @@ void MiniGameManager::Stop()
     HideGrayGlitch();
     HideSpriteGlitch();
     DestroyHud();
+    DestroyHideIcon();
     StopHardGlitches();
     activeGame_ = ActiveMiniGame::None;
 }
@@ -788,6 +1098,26 @@ void MiniGameManager::Tick()
 {
     if (activeGame_ == ActiveMiniGame::Memory) {
         memory_.Tick();
+        return;
+    }
+    if (activeGame_ == ActiveMiniGame::HideSeek) {
+        if (!app_)
+            return;
+        const DWORD now = GetTickCount();
+        if (now >= endMs_) {
+            EndHideGame();
+            return;
+        }
+        const DWORD moveInterval =
+            hardMode_ ? static_cast<DWORD>(MINIGAME_HIDE_HARD_MOVE_MS)
+                      : static_cast<DWORD>(MINIGAME_HIDE_MOVE_INTERVAL_MS);
+        if (now >= hideNextMoveMs_) {
+            TeleportHideIcon();
+            hideNextMoveMs_ = now + moveInterval;
+        }
+        PaintHideIcon();
+        UpdateHud();
+        TickGlitches(now);
         return;
     }
     if (activeGame_ != ActiveMiniGame::Click || !app_)
@@ -1034,8 +1364,11 @@ void MiniGameManager::ShowRecordsDialog()
     const int guessHard = records_.Get(MINIGAME_GUESS_ID, true);
     const int rpsNormal = records_.Get(MINIGAME_RPS_ID, false);
     const int rpsHard = records_.Get(MINIGAME_RPS_ID, true);
-    wchar_t text[1024];
-    swprintf(text, 1024,
+    const int hideNormal = records_.Get(MINIGAME_HIDE_ID, false);
+    const int hideHard = records_.Get(MINIGAME_HIDE_ID, true);
+    wchar_t text[1280];
+    swprintf(text, 1280,
+             L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
@@ -1045,6 +1378,7 @@ void MiniGameManager::ShowRecordsDialog()
              MINIGAME_MEMORY_RECORDS_LABEL, memNormal, MINIGAME_MEMORY_RECORDS_LABEL, memHard,
              MINIGAME_GUESS_RECORDS_LABEL, guessNormal, MINIGAME_GUESS_RECORDS_LABEL, guessHard,
              MINIGAME_RPS_RECORDS_LABEL, rpsNormal, MINIGAME_RPS_RECORDS_LABEL, rpsHard,
+             MINIGAME_HIDE_RECORDS_LABEL, hideNormal, MINIGAME_HIDE_RECORDS_LABEL, hideHard,
              MINIGAME_RECORDS_INI);
     MessageBoxW(app_->MainHwnd(), text, L"Рекорды — мини-игры", MB_OK | MB_ICONINFORMATION);
 }

@@ -618,6 +618,22 @@ void SpriteEngine::Draw(HDC hdc, int destX, int destY, int windowH, int& outSpri
         DeleteObject(tinted);
 }
 
+void SpriteEngine::DrawScaled(HDC hdc, int destX, int destY, int scaleW, int scaleH)
+{
+    if (frames_.empty() || scaleW <= 0 || scaleH <= 0)
+        return;
+    const SpriteFrame& fr = frames_[static_cast<size_t>(frameIndex_)];
+    HDC mem = CreateCompatibleDC(hdc);
+    HGDIOBJ old = SelectObject(mem, fr.bitmap);
+    BLENDFUNCTION bf = {};
+    bf.BlendOp = AC_SRC_OVER;
+    bf.SourceConstantAlpha = 255;
+    bf.AlphaFormat = AC_SRC_ALPHA;
+    GdiAlphaBlend(hdc, destX, destY, scaleW, scaleH, mem, 0, 0, fr.width, fr.height, bf);
+    SelectObject(mem, old);
+    DeleteDC(mem);
+}
+
 int SpriteEngine::FrameWidth() const
 {
     if (frames_.empty())

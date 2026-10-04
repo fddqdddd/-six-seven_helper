@@ -66,6 +66,7 @@ enum MenuCmd {
     kMiniGameMemoryShell = 2102,
     kMiniGameGuessNumber = 2103,
     kMiniGameRps = 2104,
+    kMiniGameHideSeek = 2105,
     kMenuRecords = 2200,
     kMenuCoolGamesLimboKeys = 2301,
     kMenuLeaveServeFile = 2401,
@@ -2805,6 +2806,7 @@ void Application::ShowClickMenu(POINT screenPt)
     AppendMenuW(miniGames, MF_STRING, kMiniGameMemoryShell, MINIGAME_MEMORY_MENU_LABEL);
     AppendMenuW(miniGames, MF_STRING, kMiniGameGuessNumber, MINIGAME_GUESS_MENU_LABEL);
     AppendMenuW(miniGames, MF_STRING, kMiniGameRps, MINIGAME_RPS_MENU_LABEL);
+    AppendMenuW(miniGames, MF_STRING, kMiniGameHideSeek, MINIGAME_HIDE_MENU_LABEL);
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(miniGames), L"Мини-игры");
 
     HMENU records = CreatePopupMenu();
@@ -2812,6 +2814,7 @@ void Application::ShowClickMenu(POINT screenPt)
     wchar_t recMem[128];
     wchar_t recGuess[128];
     wchar_t recRps[128];
+    wchar_t recHide[128];
     swprintf(recClick, 128, L"%s: %d", MINIGAME_CLICK_RECORDS_LABEL,
              miniGames_.RecordScore(false));
     swprintf(recMem, 128, L"%s: %d", MINIGAME_MEMORY_RECORDS_LABEL,
@@ -2820,10 +2823,13 @@ void Application::ShowClickMenu(POINT screenPt)
              miniGames_.GuessRecordScore(false));
     swprintf(recRps, 128, L"%s: %d", MINIGAME_RPS_RECORDS_LABEL,
              miniGames_.RpsRecordScore(false));
+    swprintf(recHide, 128, L"%s: %d", MINIGAME_HIDE_RECORDS_LABEL,
+             miniGames_.HideRecordScore(false));
     AppendMenuW(records, MF_STRING, kMenuRecords, recClick);
     AppendMenuW(records, MF_STRING, kMenuRecords + 1, recMem);
     AppendMenuW(records, MF_STRING, kMenuRecords + 2, recGuess);
     AppendMenuW(records, MF_STRING, kMenuRecords + 3, recRps);
+    AppendMenuW(records, MF_STRING, kMenuRecords + 4, recHide);
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(records), L"Рекорды");
 
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
@@ -2870,8 +2876,15 @@ void Application::ShowClickMenu(POINT screenPt)
         miniGames_.RunGuessNumberGame();
     } else if (cmd == kMiniGameRps) {
         miniGames_.RunRpsGame();
+    } else if (cmd == kMiniGameHideSeek) {
+        if (!miniGames_.IsActive() && !actions_.IsBusy()) {
+            bool hard = false;
+            if (miniGames_.ShowHidePreStartDialog(&hard))
+                miniGames_.StartHideSeek(hard);
+        }
     } else if (cmd == kMenuRecords || cmd == kMenuRecords + 1 ||
-               cmd == kMenuRecords + 2 || cmd == kMenuRecords + 3) {
+               cmd == kMenuRecords + 2 || cmd == kMenuRecords + 3 ||
+               cmd == kMenuRecords + 4) {
         miniGames_.ShowRecordsDialog();
     } else if (cmd == kMenuExit) {
         StartShutdownChain();

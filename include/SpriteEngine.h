@@ -25,6 +25,7 @@ public:
     bool SetSpriteIfDifferent(const char* spritePathUtf8, bool animate);
     void TickFrame();
     void Draw(HDC hdc, int destX, int destY, int windowH, int& outSpriteTop);
+    void DrawScaled(HDC hdc, int destX, int destY, int scaleW, int scaleH);
 
     void SetHueShift(int degrees);
     int HueShift() const { return hueShift_; }
