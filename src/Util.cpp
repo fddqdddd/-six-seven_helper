@@ -50,6 +50,43 @@ std::string WideToUtf8(const wchar_t* wide)
     return out;
 }
 
+std::string CaesarShiftImpl(const std::string& text, int shift)
+{
+    std::string out;
+    out.reserve(text.size());
+    for (unsigned char c : text) {
+        if (c >= 'a' && c <= 'z') {
+            const int base = 'a';
+            out.push_back(static_cast<char>(base + (c - base + shift) % 26 + (c - base + shift >= 0 ? 0 : 26)));
+            continue;
+        }
+        if (c >= 'A' && c <= 'Z') {
+            const int base = 'A';
+            out.push_back(static_cast<char>(base + (c - base + shift) % 26 + (c - base + shift >= 0 ? 0 : 26)));
+            continue;
+        }
+        if (c >= '0' && c <= '9') {
+            const int base = '0';
+            out.push_back(static_cast<char>(base + (c - base + shift) % 10 + (c - base + shift >= 0 ? 0 : 10)));
+            continue;
+        }
+        out.push_back(static_cast<char>(c));
+    }
+    return out;
+}
+
+std::string CaesarShiftEncode(const std::string& text, int shift)
+{
+    shift %= 26;
+    return CaesarShiftImpl(text, shift);
+}
+
+std::string CaesarShiftDecode(const std::string& text, int shift)
+{
+    shift %= 26;
+    return CaesarShiftImpl(text, -shift);
+}
+
 std::wstring PathJoin(const std::wstring& a, const std::wstring& b)
 {
     if (a.empty())

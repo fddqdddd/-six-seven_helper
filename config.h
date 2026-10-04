@@ -13,6 +13,8 @@
 #define SIX_SEVEN_NAME    "Six_Seven"
 #define SIX_SEVEN_VERSION "0.2.0"
 #define SIX_SEVEN_VENDOR  "VZorg"
+/* Как 67 обращается к пользователю, если он не заполнил анкету (токен «friend» в фразах). */
+#define SIX_SEVEN_NICKNAME L"zloi_babka"
 
 /* ========== Оффлайн (без сервера) ========== */
 #define SIX_SEVEN_OFFLINE_ONLY 1
@@ -142,6 +144,15 @@
 /* Имя пользователя Windows (меню Пуск / вход) при запуске Six_Seven. */
 #define SIX_SEVEN_PROFILE_OVERRIDE_ENABLED 1
 #define SIX_SEVEN_WINDOWS_DISPLAY_NAME   L"skuf_skufich"
+
+/* ========== Чат 67: API-ключ, зашифрованный цезарем (сдвиг 12) ==========
+ * Ключ не хранится открытым текстом. Чтобы вписать свой ключ:
+ *   1) возьмите строку sk-... и сдвиньте каждый символ на 12 позиций вперёд
+ *      по алфавиту (a->m, z->l; цифры 0->c, 9->b; прочие — без изменений);
+ *   2) положите результат в SIX_SEVEN_DEEPSEEK_KEY_CAESARED.
+ * Пустая строка = ключ берётся из six_seven.ini ([ai] deepseek_key). */
+#define SIX_SEVEN_DEEPSEEK_KEY_CAESAR_SHIFT  12
+#define SIX_SEVEN_DEEPSEEK_KEY_CAESARED       ""
 
 /* ========== Таблица спрайтов (пути — mods.h, fps — fps_anim/) ========== */
 #define SIX_SEVEN_SPRITE_TABLE \

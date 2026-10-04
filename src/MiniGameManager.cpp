@@ -1545,6 +1545,35 @@ LRESULT CALLBACK MiniGameManager::RiddleGameWndProc(HWND hwnd, UINT msg, WPARAM 
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 
+void MiniGameManager::RiddleNormalizeAnswer(std::wstring& s)
+{
+    /* «три» → «3», чтобы можно было отвечать и цифрой, и словом. */
+    struct NumWord {
+        const wchar_t* word;
+        const wchar_t* digit;
+    };
+    static const NumWord kNums[] = {
+        { L"ноль", L"0" },     { L"один", L"1" },  { L"одна", L"1" },
+        { L"два", L"2" },      { L"две", L"2" },   { L"три", L"3" },
+        { L"четыре", L"4" },   { L"пять", L"5" },  { L"шесть", L"6" },
+        { L"семь", L"7" },     { L"восемь", L"8" }, { L"девять", L"9" },
+        { L"десять", L"10" },  { L"одиннадцать", L"11" },
+        { L"двенадцать", L"12" }, { L"тринадцать", L"13" },
+        { L"четырнадцать", L"14" }, { L"пятнадцать", L"15" },
+        { L"шестнадцать", L"16" }, { L"семнадцать", L"17" },
+        { L"восемнадцать", L"18" }, { L"девятнадцать", L"19" },
+        { L"двадцать", L"20" },
+    };
+    for (auto& c : s)
+        c = static_cast<wchar_t>(towlower(c));
+    for (const auto& n : kNums) {
+        if (s == n.word) {
+            s = n.digit;
+            return;
+        }
+    }
+}
+
 void MiniGameManager::OnRiddleSubmit(HWND hwnd, RiddleGameData* data) const
 {
     wchar_t buf[256] = {};
@@ -1560,10 +1589,8 @@ void MiniGameManager::OnRiddleSubmit(HWND hwnd, RiddleGameData* data) const
     };
     trim(guess);
     trim(expected);
-    for (wchar_t& c : guess)
-        c = static_cast<wchar_t>(towlower(c));
-    for (wchar_t& c : expected)
-        c = static_cast<wchar_t>(towlower(c));
+    RiddleNormalizeAnswer(guess);
+    RiddleNormalizeAnswer(expected);
 
     if (guess == expected) {
         data->done = true;

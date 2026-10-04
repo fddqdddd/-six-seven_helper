@@ -13,6 +13,8 @@ namespace six_seven {
 std::wstring GetExeDirectory();
 std::wstring Utf8ToWide(const char* utf8);
 std::string WideToUtf8(const wchar_t* wide);
+std::string CaesarShiftEncode(const std::string& text, int shift);
+std::string CaesarShiftDecode(const std::string& text, int shift);
 std::wstring PathJoin(const std::wstring& a, const std::wstring& b);
 std::wstring AssetPath(const char* relativeUtf8);
 bool FileExists(const std::wstring& path);

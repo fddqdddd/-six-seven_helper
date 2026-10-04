@@ -72,7 +72,7 @@ void WriteDefaultIni(const std::wstring& path)
         u8"vault_fragments=0\r\n"
         u8"; День (с 1970-01-01), когда был получен последний фрагмент.\r\n"
         u8"vault_fragment_day=0\r\n"
-        u8"; API-ключ DeepSeek для чата (меню «Спец. функции» → «Спросить 67 (DeepSeek)»).\r\n"
+        u8"; API-ключ для чата (меню «Спец. функции» → «Спросить 67»).\r\n"
         u8"deepseek_key=\r\n";
 }
 

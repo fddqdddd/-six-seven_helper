@@ -117,6 +117,7 @@ private:
     void OnGuessSubmit(HWND hwnd, GuessGameData* data) const;
     void OnRpsMove(HWND hwnd, RpsGameData* data, int pick);
     void OnRiddleSubmit(HWND hwnd, RiddleGameData* data) const;
+    static void RiddleNormalizeAnswer(std::wstring& s);
     void OnSnakeTick(HWND hwnd, SnakeGameData* data);
     void OnSnakeEnd(HWND hwnd, SnakeGameData* data);
     static LRESULT CALLBACK GuessGameWndProc(HWND, UINT, WPARAM, LPARAM);

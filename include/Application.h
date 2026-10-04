@@ -125,6 +125,7 @@ private:
     void SaveDeepSeekKeyToSettings(const std::wstring& key);
     std::wstring AskDeepSeek(const std::wstring& key, const std::wstring& question);
     void SpeakNotice(const std::wstring& text, std::function<void()> onDone = {});
+    std::wstring AddressName() const;
     void CenterCharacterOnScreen();
     void MoveCharacterAboveDialogsOnce();
     static void CenterDialog(HWND dlg, int width, int height);

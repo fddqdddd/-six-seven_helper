@@ -665,7 +665,7 @@ LRESULT CALLBACK Application::ChatDialogWndProc(HWND hwnd, UINT msg, WPARAM wp, 
                                            12, 86, 300, 110, hwnd,
                                            reinterpret_cast<HMENU>(kChatAnswerEdit),
                                            cs->hInstance, nullptr);
-        CreateWindowExW(0, L"STATIC", L"Ключ API DeepSeek (sk-...):", WS_CHILD | WS_VISIBLE, 12,
+        CreateWindowExW(0, L"STATIC", L"Ключ API (sk-...):", WS_CHILD | WS_VISIBLE, 12,
                         206, 280, 18, hwnd, nullptr, cs->hInstance, nullptr);
         data->keyEdit = CreateWindowExW(WS_EX_CLIENTEDGE, L"EDIT", L"",
                                         WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL, 12, 228, 300,
@@ -711,7 +711,7 @@ LRESULT CALLBACK Application::ChatDialogWndProc(HWND hwnd, UINT msg, WPARAM wp, 
             const std::wstring answer = data->app->AskDeepSeek(key, question);
             if (data->answerEdit)
                 SetWindowTextW(data->answerEdit, answer.c_str());
-            data->app->SpeakNotice(answer.empty() ? L"DeepSeek не ответил." : answer);
+            data->app->SpeakNotice(answer.empty() ? L"67 не ответила." : answer);
             return 0;
         }
         break;
@@ -1842,7 +1842,8 @@ void Application::WriteServeFileToDesktop()
     body += "  - сколько раз посмотрел пароль:    ********\n";
     body += "  - сколько раз поднял бровь:        ********\n";
     body += "  - сколько раз хотел выключить 67:  ********\n\n";
-    body += "Не бойся, friend. Я никому не скажу.\n";
+    const std::wstring addrName = AddressName();
+    body += "Не бойся, " + WideToUtf8(addrName.c_str()) + ". Я никому не скажу.\n";
     body += "Пока.\n";
     if (WriteTextFile(path, body, true)) {
         SpeakNotice(L"Готово. Файл на столе. Проверь, друг.");
@@ -2872,7 +2873,13 @@ std::wstring Application::DeepSeekKeyStored()
 {
     AppSettings s;
     settings_.Load(s);
-    return s.deepseekKey;
+    if (!s.deepseekKey.empty())
+        return s.deepseekKey;
+    const std::string ciphered = SIX_SEVEN_DEEPSEEK_KEY_CAESARED;
+    if (ciphered.empty())
+        return {};
+    const std::string decoded = CaesarShiftDecode(ciphered, SIX_SEVEN_DEEPSEEK_KEY_CAESAR_SHIFT);
+    return Utf8ToWide(decoded.c_str());
 }
 
 void Application::SaveDeepSeekKeyToSettings(const std::wstring& key)
@@ -2896,6 +2903,13 @@ void Application::UnlockTerminalRestrictions()
     userInfo_.SetTerminalUnlocked(true);
     userInfo_.Save();
     MessageBoxW(hwnd_, L"Ограничения терминала сняты.", L"Six_Seven", MB_OK | MB_ICONINFORMATION);
+}
+
+std::wstring Application::AddressName() const
+{
+    if (userInfo_.IsOnboarded() && !userInfo_.Name().empty())
+        return userInfo_.Name();
+    return L"zloi_babka";
 }
 
 void Application::SpeakNotice(const std::wstring& text, std::function<void()> onDone)
@@ -2971,7 +2985,7 @@ void Application::ExecuteTerminalCommand(const std::wstring& command)
     }
     if (command == L"67_otzov") {
         NoteUserActivity();
-        SpeakNotice(L"Я здесь, friend! Шесть-Семь на связи.");
+        SpeakNotice(L"Я здесь, " + AddressName() + L"! Шесть-Семь на связи.");
         return;
     }
     if (command == L"67_pet") {
@@ -2980,7 +2994,7 @@ void Application::ExecuteTerminalCommand(const std::wstring& command)
             anger_ = std::max(0, anger_ - 25);
             settings_.SaveAnger(anger_);
         }
-        SpeakNotice(L"Мур-мур! Спасибо, friend, приятно.");
+        SpeakNotice(L"Мур-мур! Спасибо, " + AddressName() + L", приятно.");
         return;
     }
     if (command == L"67_glitch") {
@@ -3079,7 +3093,7 @@ void Application::ShowClickMenu(POINT screenPt)
     AppendMenuW(special, MF_STRING, kMenuLeaveGift, L"Оставить подарок на столе");
     AppendMenuW(special, MF_STRING, kMenuVaultHide, L"Спрятать всё со стола (Vault)");
     AppendMenuW(special, MF_STRING, kMenuVaultRestore, L"Вернуть всё из Vault");
-    AppendMenuW(special, MF_STRING, kMenuChatDeepSeek, L"Спросить 67 (DeepSeek)");
+    AppendMenuW(special, MF_STRING, kMenuChatDeepSeek, L"Спросить 67");
     AppendMenuW(special, MF_STRING, kMenuAdminPanel, L"Админ панель");
     HMENU coolGames = CreatePopupMenu();
     AppendMenuW(coolGames, MF_STRING, kMenuCoolGamesLimboKeys, L"Limbo Keys");

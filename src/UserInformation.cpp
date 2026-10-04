@@ -1,5 +1,6 @@
 #include "../include/UserInformation.h"
 #include "../include/Util.h"
+#include "../config.h"
 
 #include <windows.h>
 
@@ -285,7 +286,10 @@ void PersonalizePhrase(std::wstring& text, const UserInformation* info)
 {
     if (!info || !info->IsOnboarded())
         return;
-    ReplaceToken(text, L"friend", info->Name());
+    std::wstring name = info->Name();
+    if (name.empty())
+        name = SIX_SEVEN_NICKNAME;
+    ReplaceToken(text, L"friend", name);
     ReplaceToken(text, L"color", info->FavoriteColor());
     ReplaceToken(text, L"season", info->FavoriteSeason());
     ReplaceToken(text, L"food", info->FavoriteFood());
