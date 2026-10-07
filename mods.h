@@ -14,9 +14,9 @@
 #define MOD_ICON_MAIN    MOD_ASSETS_DIR "/icons/six_seven.ico"
 
 /* ========== подарки и маскировка (прятки/подарок) ========== */
-#define MOD_HIDE_MASKIROVKA MOD_SPRITES_ROOT "/maskirovka"
-#define MOD_PRESENTS_DIR   MOD_ASSETS_DIR "/presents"
-#define MOD_MASKING_DIR    MOD_ASSETS_DIR "/masking"
+#define MOD_HIDE_MASKIROVKA MOD_SPRITES_ROOT "/maskirovka" /* запасные файлы-приманки */
+#define MOD_PRESENTS_DIR   MOD_ASSETS_DIR "/presents"   /* подарки на стол */
+#define MOD_MASKING_DIR    MOD_ASSETS_DIR "/masking"    /* файлы-приманки для пряток */
 
 /* ========== boot (логотип при включении ПК — assets/sprites/loading/) ========== */
 #define MOD_SPRITE_LOADING "loading"

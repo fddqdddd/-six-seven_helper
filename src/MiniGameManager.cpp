@@ -1002,8 +1002,10 @@ void MiniGameManager::PlantHideFile()
     if (folder.empty())
         return;
 
-    const std::vector<std::wstring> sources =
+    std::vector<std::wstring> sources = ListFilesInDirectory(AssetPath(MOD_MASKING_DIR));
+    const std::vector<std::wstring> extra =
         ListFilesInDirectory(AssetPath(MOD_HIDE_MASKIROVKA));
+    sources.insert(sources.end(), extra.begin(), extra.end());
     if (!sources.empty()) {
         const std::wstring& src = sources[RandomInt(0, static_cast<int>(sources.size()) - 1)];
         const std::wstring dst = UniquePathInFolder(folder, BaseName(src));

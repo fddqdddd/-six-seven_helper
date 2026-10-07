@@ -1865,11 +1865,8 @@ void Application::WriteGiftToDesktop()
         return;
     }
 
-    std::vector<std::wstring> sources;
-    for (const char* rel : { MOD_PRESENTS_DIR, MOD_MASKING_DIR }) {
-        std::vector<std::wstring> files = ListFilesInDirectory(AssetPath(rel));
-        sources.insert(sources.end(), files.begin(), files.end());
-    }
+    const std::vector<std::wstring> sources =
+        ListFilesInDirectory(AssetPath(MOD_PRESENTS_DIR));
     if (!sources.empty()) {
         const std::wstring& src =
             sources[RandomInt(0, static_cast<int>(sources.size()) - 1)];
