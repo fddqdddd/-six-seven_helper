@@ -525,7 +525,10 @@ void MiniGameManager::PaintHud()
     wchar_t tbuf[32];
     FormatTime(tbuf, 32, left);
     wchar_t scoreLine[64];
-    swprintf(scoreLine, 64, L"Очки: %d", score_);
+    if (activeGame_ == ActiveMiniGame::HideSeek)
+        swprintf(scoreLine, 64, L"Найдено: %d", score_);
+    else
+        swprintf(scoreLine, 64, L"Очки: %d", score_);
 
     HFONT scoreFont =
         CreateFontW(-18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
@@ -890,14 +893,10 @@ void MiniGameManager::StartHideSeek(bool hardMode)
 
     hardMode_ = hardMode;
     score_ = 0;
-    const DWORD durationSec =
-        hardMode_ ? static_cast<DWORD>(MINIGAME_HIDE_HARD_TIME_SEC)
-                  : static_cast<DWORD>(MINIGAME_HIDE_TIME_SEC);
-    startMs_ = GetTickCount();
-    endMs_ = startMs_ + durationSec * 1000;
+    startMs_ = 0;
+    endMs_ = 0;
     lastMoveMs_ = 0;
     lastHudMs_ = 0;
-    hideIconIndex_ = 0;
 
     app_->Sprites().SetSprite(
         hardMode_ ? MOD_SPRITE_MINIGAME_CLICK_SIX_SEVEN_HARD
@@ -911,196 +910,155 @@ void MiniGameManager::StartHideSeek(bool hardMode)
     savedWinPos_ = true;
 
     activeGame_ = ActiveMiniGame::HideSeek;
-    CreateHud();
-    CreateHideIcon();
-    TeleportHideIcon();
-    lastMoveMs_ = GetTickCount();
-    hideNextMoveMs_ = GetTickCount() + static_cast<DWORD>(MINIGAME_HIDE_MOVE_INTERVAL_MS);
+    hidePhase_ = HidePhase::Countdown;
+    hideCountdownValue_ = 0;
+    hideLockHits_ = 0;
+    hideNextPollAtMs_ = 0;
+    hideFoundUntilMs_ = 0;
+    hideDeleteAttempts_ = 0;
+    RemoveHideFile();
 
-    ShowWindow(app_->MainHwnd(), SW_HIDE);
+    const DWORD now = GetTickCount();
+    hideCountdownNextAt_ = now + static_cast<DWORD>(MINIGAME_HIDE_COUNTDOWN_DELAY_MS);
 
     if (hardMode_) {
-        const DWORD now = GetTickCount();
         nextGrayGlitchMs_ = now + static_cast<DWORD>(MINIGAME_GLITCH_GRAY_INTERVAL_MS);
         nextSpriteGlitchMs_ = now + static_cast<DWORD>(MINIGAME_GLITCH_SPRITE_INTERVAL_MS);
     } else {
         nextGrayGlitchMs_ = 0;
         nextSpriteGlitchMs_ = 0;
     }
-    UpdateHud();
+
+    ShowWindow(app_->MainHwnd(), SW_HIDE);
+    CreateHideOverlay();
 }
 
-static const wchar_t* kHideFileNames[] = {
-    L"важное_документы.png",
-    L"никак_не_открывать.exe",
-    L"планы_на_пятницу.txt",
-    L"фото_кота.jpg",
-    L"список_дел.docx",
-    L"не_трогай_это.zip",
-    L"мой_пароль (шутка).txt",
-    L"рецепт_пельменей.png",
-    L"домашка_по_физике.pdf",
-    L"люблю_тебя_friend.png",
-};
-
-void MiniGameManager::CreateHideIcon()
+void MiniGameManager::CreateHideOverlay()
 {
-    if (!app_ || hideIconHwnd_)
+    if (!app_ || hideOverlayHwnd_)
         return;
-    RegisterClassOnce(app_->Inst(), L"SixSevenHideIcon", HideIconWndProc,
-                      hideIconClassRegistered_);
+    RegisterClassOnce(app_->Inst(), L"SixSevenHideOverlay", HideOverlayWndProc,
+                      hideOverlayClassRegistered_);
 
-    const int w = 150;
-    const int h = 130 + MINIGAME_HIDE_NAME_BAND_H;
-    BITMAPINFO bi = {};
-    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-    bi.bmiHeader.biWidth = w;
-    bi.bmiHeader.biHeight = -h;
-    bi.bmiHeader.biPlanes = 1;
-    bi.bmiHeader.biBitCount = 32;
-    HDC screen = GetDC(nullptr);
-    hideIconDib_ = CreateDIBSection(screen, &bi, DIB_RGB_COLORS, &hideIconDibBits_, nullptr, 0);
-    hideIconDibDc_ = CreateCompatibleDC(screen);
-    SelectObject(hideIconDibDc_, hideIconDib_);
-    ReleaseDC(nullptr, screen);
-
-    hideIconHwnd_ = CreateWindowExW(WS_EX_LAYERED | WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
-                                    L"SixSevenHideIcon", L"", WS_POPUP, 0, 0, w, h, nullptr,
-                                    nullptr, app_->Inst(), this);
-    if (hideIconHwnd_)
-        ShowWindow(hideIconHwnd_, SW_SHOWNA);
-}
-
-void MiniGameManager::DestroyHideIcon()
-{
-    if (hideIconHwnd_) {
-        DestroyWindow(hideIconHwnd_);
-        hideIconHwnd_ = nullptr;
-    }
-    if (hideIconDibDc_) {
-        DeleteDC(hideIconDibDc_);
-        hideIconDibDc_ = nullptr;
-    }
-    if (hideIconDib_) {
-        DeleteObject(hideIconDib_);
-        hideIconDib_ = nullptr;
-    }
-    hideIconDibBits_ = nullptr;
-}
-
-void MiniGameManager::TeleportHideIcon()
-{
-    if (!hideIconHwnd_ || !app_)
+    const int vx = GetSystemMetrics(SM_XVIRTUALSCREEN);
+    const int vy = GetSystemMetrics(SM_YVIRTUALSCREEN);
+    const int vw = GetSystemMetrics(SM_CXVIRTUALSCREEN);
+    const int vh = GetSystemMetrics(SM_CYVIRTUALSCREEN);
+    hideOverlayHwnd_ = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW,
+                                       L"SixSevenHideOverlay", L"", WS_POPUP, vx, vy, vw, vh,
+                                       nullptr, nullptr, app_->Inst(), this);
+    if (!hideOverlayHwnd_)
         return;
-    hideIconIndex_ = (hideIconIndex_ + 1) % static_cast<int>(std::size(kHideFileNames));
-    if (hideIconIndex_ < 0)
-        hideIconIndex_ = 0;
-
-    const int w = 150;
-    const int h = 130 + MINIGAME_HIDE_NAME_BAND_H;
-    const RECT wa = GetCombinedWorkArea();
-    const int minY = wa.top + 20;
-    const int maxY = wa.bottom - h - 20;
-    const int maxX = wa.right - w - 20;
-    const int spanY = maxY > minY ? maxY - minY : 1;
-    const int spanX = maxX - wa.left - 20;
-    int x = wa.left + 20 + RandomInt(0, spanX > 0 ? spanX : 1);
-    int y = minY + RandomInt(0, spanY);
-    SetWindowPos(hideIconHwnd_, HWND_TOPMOST, x, y, w, h,
-                 SWP_NOACTIVATE | SWP_SHOWWINDOW);
-    PaintHideIcon();
+    SetWindowPos(hideOverlayHwnd_, HWND_TOPMOST, vx, vy, vw, vh, SWP_NOACTIVATE);
+    ShowWindow(hideOverlayHwnd_, SW_SHOWNA);
+    PaintHideOverlay();
 }
 
-void MiniGameManager::PaintHideIcon()
+void MiniGameManager::DestroyHideOverlay()
 {
-    if (!hideIconHwnd_ || !hideIconDibDc_ || !hideIconDibBits_ || !app_)
-        return;
-    const int w = 150;
-    const int h = 130 + MINIGAME_HIDE_NAME_BAND_H;
-    auto* px = static_cast<BYTE*>(hideIconDibBits_);
-    std::memset(px, 0, static_cast<size_t>(w) * h * 4);
+    if (hideOverlayHwnd_) {
+        DestroyWindow(hideOverlayHwnd_);
+        hideOverlayHwnd_ = nullptr;
+    }
+}
 
-    HDC mem = hideIconDibDc_;
-    SetBkMode(mem, TRANSPARENT);
-    HFONT nameFont = CreateFontW(-15, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+void MiniGameManager::PaintHideOverlay()
+{
+    if (!hideOverlayHwnd_)
+        return;
+    PAINTSTRUCT ps = {};
+    HDC hdc = BeginPaint(hideOverlayHwnd_, &ps);
+    RECT rc = {};
+    GetClientRect(hideOverlayHwnd_, &rc);
+    HBRUSH br = CreateSolidBrush(RGB(0, 0, 0));
+    FillRect(hdc, &rc, br);
+    DeleteObject(br);
+    if (hideCountdownValue_ > 0) {
+        wchar_t buf[8] = {};
+        swprintf(buf, 8, L"%d", hideCountdownValue_);
+        HFONT font = CreateFontW(-300, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
                                  OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
                                  DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-    HGDIOBJ oldFont = SelectObject(mem, nameFont);
-
-    RECT paper = { 10, 8, w - 10, 120 };
-    HBRUSH shadow = CreateSolidBrush(RGB(40, 40, 40));
-    RECT shadowRc = { paper.left + 3, paper.top + 3, paper.right + 3, paper.bottom + 3 };
-    FillRect(mem, &shadowRc, shadow);
-    DeleteObject(shadow);
-    HBRUSH paperBr = CreateSolidBrush(RGB(255, 252, 240));
-    FillRect(mem, &paper, paperBr);
-    DeleteObject(paperBr);
-    HPEN framePen = CreatePen(PS_SOLID, 3, RGB(30, 120, 200));
-    HGDIOBJ oldPen = SelectObject(mem, framePen);
-    HBRUSH oldBr = static_cast<HBRUSH>(SelectObject(mem, GetStockObject(NULL_BRUSH)));
-    RoundRect(mem, paper.left, paper.top, paper.right, paper.bottom, 10, 10);
-    SelectObject(mem, oldPen);
-    SelectObject(mem, oldBr);
-    DeleteObject(framePen);
-
-    int spX = (paper.left + paper.right) / 2;
-    int spY = 24;
-    app_->Sprites().DrawScaled(mem, spX - 42, spY, 84, 84);
-
-    if (app_->Sprites().FrameWidth() <= 0) {
-        HFONT bigFont = CreateFontW(-44, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-                                    OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                                    DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
-        SelectObject(mem, bigFont);
-        SetTextColor(mem, RGB(200, 60, 60));
-        RECT numRc = { paper.left + 20, 30, paper.right - 20, 100 };
-        DrawTextW(mem, L"67", -1, &numRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        SelectObject(mem, nameFont);
-        DeleteObject(bigFont);
+        HGDIOBJ old = SelectObject(hdc, font);
+        SetBkMode(hdc, TRANSPARENT);
+        SetTextColor(hdc, RGB(255, 255, 255));
+        DrawTextW(hdc, buf, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        SelectObject(hdc, old);
+        DeleteObject(font);
     }
+    EndPaint(hideOverlayHwnd_, &ps);
+}
 
-    SetTextColor(mem, RGB(20, 40, 90));
-    const wchar_t* name = kHideFileNames[hideIconIndex_];
-    RECT nameRc = { 10, 96, w - 10, h - 6 };
-    DrawTextW(mem, name, -1, &nameRc, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_PATH_ELLIPSIS);
+void MiniGameManager::PlantHideFile()
+{
+    RemoveHideFile();
+    if (!app_)
+        return;
+    const int depth =
+        hardMode_ ? RandomInt(MINIGAME_HIDE_HARD_DEPTH_MIN, MINIGAME_HIDE_HARD_DEPTH_MAX) : 1;
+    std::wstring folder = PickDesktopFolder(depth);
+    if (folder.empty())
+        folder = GetDesktopPath();
+    if (folder.empty())
+        return;
 
-    SelectObject(mem, oldFont);
-    DeleteObject(nameFont);
-
-    for (int y = 0; y < h; ++y) {
-        for (int x = 0; x < w; ++x) {
-            BYTE* p = px + (static_cast<size_t>(y) * w + x) * 4;
-            p[3] = 255;
+    const std::vector<std::wstring> sources =
+        ListFilesInDirectory(AssetPath(MOD_HIDE_MASKIROVKA));
+    if (!sources.empty()) {
+        const std::wstring& src = sources[RandomInt(0, static_cast<int>(sources.size()) - 1)];
+        const std::wstring dst = UniquePathInFolder(folder, BaseName(src));
+        if (CopyFileW(src.c_str(), dst.c_str(), FALSE)) {
+            hideFilePath_ = dst;
+            return;
         }
     }
 
-    POINT ptSrc = { 0, 0 };
-    SIZE size = { w, h };
-    BLENDFUNCTION blend = {};
-    blend.BlendOp = AC_SRC_OVER;
-    blend.SourceConstantAlpha = 255;
-    blend.AlphaFormat = AC_SRC_ALPHA;
-    POINT ptDst = {};
-    RECT wr = {};
-    GetWindowRect(hideIconHwnd_, &wr);
-    ptDst.x = wr.left;
-    ptDst.y = wr.top;
-    HDC screen = GetDC(nullptr);
-    UpdateLayeredWindow(hideIconHwnd_, screen, &ptDst, &size, hideIconDibDc_, &ptSrc, 0, &blend,
-                        ULW_ALPHA);
-    ReleaseDC(nullptr, screen);
+    static const wchar_t* kFallbackNames[] = {
+        L"важное_документы.txt",
+        L"планы_на_пятницу.txt",
+        L"список_дел.txt",
+        L"мой_пароль (шутка).txt",
+        L"не открывай.txt",
+        L"прочитай_меня.txt",
+        L"записка от 67.txt",
+        L"тут_что-то_есть.txt",
+    };
+    const wchar_t* name =
+        kFallbackNames[RandomInt(0, static_cast<int>(std::size(kFallbackNames)) - 1)];
+    const std::wstring dst = UniquePathInFolder(folder, name);
+    const std::string decoy =
+        "просто файл.\n\nесли ты это читаешь — значит, ты открыл.\nэто и есть прятки.\n\n— 67\n";
+    if (WriteTextFile(dst, decoy, true))
+        hideFilePath_ = dst;
 }
 
-void MiniGameManager::OnHideIconClick()
+void MiniGameManager::RemoveHideFile()
+{
+    if (hideFilePath_.empty())
+        return;
+    if (!DeleteFileW(hideFilePath_.c_str())) {
+        hidePendingDelete_ = hideFilePath_;
+        hideDeleteAttempts_ = 0;
+    }
+    hideFilePath_.clear();
+}
+
+void MiniGameManager::OnHideFileFound(DWORD now)
 {
     if (activeGame_ != ActiveMiniGame::HideSeek || !app_)
         return;
     score_ += 1;
-    TeleportHideIcon();
-    hideNextMoveMs_ = GetTickCount() +
-                      (hardMode_ ? static_cast<DWORD>(MINIGAME_HIDE_HARD_MOVE_MS)
-                                 : static_cast<DWORD>(MINIGAME_HIDE_MOVE_INTERVAL_MS));
+    if (!hideFilePath_.empty())
+        CloseEditorWindowsTitled(BaseName(hideFilePath_));
+    RemoveHideFile();
+    hideLockHits_ = 0;
+    hideNextPollAtMs_ = now + static_cast<DWORD>(MINIGAME_HIDE_POLL_MS);
+    ShowWindow(app_->MainHwnd(), SW_SHOWNOACTIVATE);
+    app_->SpeakNotice(MINIGAME_HIDE_FOUND_TEXT);
+    hidePhase_ = HidePhase::FoundPause;
+    hideFoundUntilMs_ = now + static_cast<DWORD>(MINIGAME_HIDE_FOUND_PAUSE_MS);
     UpdateHud();
+    app_->RepaintMain();
 }
 
 void MiniGameManager::EndHideGame()
@@ -1109,15 +1067,19 @@ void MiniGameManager::EndHideGame()
         return;
     const int finalScore = score_;
     const bool hard = hardMode_;
-    const DWORD elapsed = GetTickCount() - startMs_;
+    const DWORD elapsed = startMs_ ? GetTickCount() - startMs_ : 0;
     const int restoreX = savedWinLeft_;
     const int restoreY = savedWinTop_;
     const bool restorePos = savedWinPos_;
 
-    DestroyHideIcon();
+    DestroyHideOverlay();
     activeGame_ = ActiveMiniGame::None;
     DestroyHud();
     StopHardGlitches();
+    ShowWindow(app_->MainHwnd(), SW_SHOW);
+    RemoveHideFile();
+    if (!hidePendingDelete_.empty() && DeleteFileW(hidePendingDelete_.c_str()))
+        hidePendingDelete_.clear();
 
     const bool newRecord = records_.TrySave(MINIGAME_HIDE_ID, hard, finalScore);
     if (newRecord)
@@ -1138,11 +1100,10 @@ void MiniGameManager::EndHideGame()
         SetWindowPos(app_->MainHwnd(), HWND_TOPMOST, restoreX, restoreY, 0, 0,
                      SWP_NOSIZE | SWP_NOACTIVATE);
     }
-    ShowWindow(app_->MainHwnd(), SW_SHOW);
     app_->ReturnToIdleSprite();
 }
 
-LRESULT CALLBACK MiniGameManager::HideIconWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+LRESULT CALLBACK MiniGameManager::HideOverlayWndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     auto* mgr = reinterpret_cast<MiniGameManager*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
     switch (msg) {
@@ -1152,10 +1113,14 @@ LRESULT CALLBACK MiniGameManager::HideIconWndProc(HWND hwnd, UINT msg, WPARAM wp
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(mgr));
         return 0;
     }
-    case WM_LBUTTONDOWN:
-        if (mgr)
-            mgr->OnHideIconClick();
-        return 0;
+    case WM_PAINT:
+        if (mgr) {
+            mgr->PaintHideOverlay();
+            return 0;
+        }
+        break;
+    case WM_MOUSEACTIVATE:
+        return MA_NOACTIVATE;
     case WM_DESTROY:
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, 0);
         return 0;
@@ -1227,9 +1192,15 @@ void MiniGameManager::Stop()
     HideGrayGlitch();
     HideSpriteGlitch();
     DestroyHud();
-    DestroyHideIcon();
+    const bool wasHide = activeGame_ == ActiveMiniGame::HideSeek;
+    DestroyHideOverlay();
+    RemoveHideFile();
     StopHardGlitches();
     activeGame_ = ActiveMiniGame::None;
+    if (wasHide && app_) {
+        ShowWindow(app_->MainHwnd(), SW_SHOW);
+        app_->ReturnToIdleSprite();
+    }
 }
 
 void MiniGameManager::Tick()
@@ -1242,18 +1213,74 @@ void MiniGameManager::Tick()
         if (!app_)
             return;
         const DWORD now = GetTickCount();
+
+        if (hidePhase_ == HidePhase::Countdown) {
+            if (now >= hideCountdownNextAt_) {
+                if (hideCountdownValue_ == 0) {
+                    hideCountdownValue_ = 3;
+                } else if (hideCountdownValue_ > 1) {
+                    hideCountdownValue_ -= 1;
+                } else {
+                    DestroyHideOverlay();
+                    const DWORD durationSec =
+                        hardMode_ ? static_cast<DWORD>(MINIGAME_HIDE_HARD_TIME_SEC)
+                                  : static_cast<DWORD>(MINIGAME_HIDE_TIME_SEC);
+                    startMs_ = now;
+                    endMs_ = now + durationSec * 1000;
+                    hidePhase_ = HidePhase::Playing;
+                    hideLockHits_ = 0;
+                    hideNextPollAtMs_ = now + static_cast<DWORD>(MINIGAME_HIDE_POLL_MS);
+                    PlantHideFile();
+                    CreateHud();
+                    UpdateHud();
+                    TickGlitches(now);
+                    return;
+                }
+                hideCountdownNextAt_ = now + static_cast<DWORD>(MINIGAME_HIDE_COUNTDOWN_STEP_MS);
+                if (hideOverlayHwnd_) {
+                    InvalidateRect(hideOverlayHwnd_, nullptr, TRUE);
+                    UpdateWindow(hideOverlayHwnd_);
+                }
+            }
+            return;
+        }
+
+        if (!hidePendingDelete_.empty()) {
+            if (DeleteFileW(hidePendingDelete_.c_str()))
+                hidePendingDelete_.clear();
+            else if (++hideDeleteAttempts_ >= MINIGAME_HIDE_DELETE_ATTEMPTS)
+                hidePendingDelete_.clear();
+        }
+
         if (now >= endMs_) {
             EndHideGame();
             return;
         }
-        const DWORD moveInterval =
-            hardMode_ ? static_cast<DWORD>(MINIGAME_HIDE_HARD_MOVE_MS)
-                      : static_cast<DWORD>(MINIGAME_HIDE_MOVE_INTERVAL_MS);
-        if (now >= hideNextMoveMs_) {
-            TeleportHideIcon();
-            hideNextMoveMs_ = now + moveInterval;
+
+        if (hidePhase_ == HidePhase::FoundPause) {
+            if (now >= hideFoundUntilMs_) {
+                ShowWindow(app_->MainHwnd(), SW_HIDE);
+                PlantHideFile();
+                hidePhase_ = HidePhase::Playing;
+                hideLockHits_ = 0;
+                hideNextPollAtMs_ = now + static_cast<DWORD>(MINIGAME_HIDE_POLL_MS);
+            }
+        } else if (now >= hideNextPollAtMs_) {
+            hideNextPollAtMs_ = now + static_cast<DWORD>(MINIGAME_HIDE_POLL_MS);
+            bool open = IsFileOpenByOtherProcess(hideFilePath_);
+            if (!open && !hideFilePath_.empty())
+                open = WindowTitleContains(BaseName(hideFilePath_));
+            if (open) {
+                hideLockHits_ += 1;
+                if (hideLockHits_ >= MINIGAME_HIDE_LOCK_HITS)
+                    OnHideFileFound(now);
+            } else {
+                hideLockHits_ = 0;
+            }
         }
-        PaintHideIcon();
+
+        if (activeGame_ != ActiveMiniGame::HideSeek)
+            return;
         UpdateHud();
         TickGlitches(now);
         return;
@@ -1825,15 +1852,13 @@ void MiniGameManager::ShowRecordsDialog()
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
              L"%s (обычный): %d\r\n%s (hard-mode): %d\r\n\r\n"
-             L"%s: %d\r\n\r\n"
-             L"Рекорды в файле %hs",
+             L"%s: %d",
              MINIGAME_CLICK_RECORDS_LABEL, clickNormal, MINIGAME_CLICK_RECORDS_LABEL, clickHard,
              MINIGAME_MEMORY_RECORDS_LABEL, memNormal, MINIGAME_MEMORY_RECORDS_LABEL, memHard,
              MINIGAME_GUESS_RECORDS_LABEL, guessNormal, MINIGAME_GUESS_RECORDS_LABEL, guessHard,
              MINIGAME_RPS_RECORDS_LABEL, rpsNormal, MINIGAME_RPS_RECORDS_LABEL, rpsHard,
              MINIGAME_HIDE_RECORDS_LABEL, hideNormal, MINIGAME_HIDE_RECORDS_LABEL, hideHard,
-             MINIGAME_SNAKE_RECORDS_LABEL, snakeNormal,
-             MINIGAME_RECORDS_INI);
+             MINIGAME_SNAKE_RECORDS_LABEL, snakeNormal);
     MessageBoxW(app_->MainHwnd(), text, L"Рекорды — мини-игры", MB_OK | MB_ICONINFORMATION);
 }
 

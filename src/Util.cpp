@@ -2,8 +2,10 @@
 #include "../config.h"
 
 #include <windows.h>
+#include <shlobj.h>
 
 #include <cstdlib>
+#include <cwctype>
 #include <fstream>
 #include <algorithm>
 
@@ -319,6 +321,248 @@ void CenterWindowOnScreen(HWND hwnd, int width, int height)
     const int x = wr.left + (wr.right - wr.left - width) / 2;
     const int y = wr.top + (wr.bottom - wr.top - height) / 2;
     SetWindowPos(hwnd, nullptr, x, y, width, height, SWP_NOZORDER);
+}
+
+std::wstring BaseName(const std::wstring& path)
+{
+    const size_t slash = path.find_last_of(L"\\/");
+    if (slash == std::wstring::npos)
+        return path;
+    return path.substr(slash + 1);
+}
+
+std::wstring GetDesktopPath()
+{
+    wchar_t desktop[MAX_PATH] = {};
+    if (FAILED(SHGetFolderPathW(nullptr, CSIDL_DESKTOPDIRECTORY, nullptr, SHGFP_TYPE_CURRENT,
+                                desktop)))
+        return {};
+    return desktop;
+}
+
+namespace {
+
+bool IsUsableFolderEntry(const wchar_t* name)
+{
+    return name[0] != L'.' && wcscmp(name, L".") != 0 && wcscmp(name, L"..") != 0;
+}
+
+std::wstring LowercaseCopy(const std::wstring& s)
+{
+    std::wstring out = s;
+    for (auto& ch : out)
+        ch = static_cast<wchar_t>(towlower(ch));
+    return out;
+}
+
+} /* namespace */
+
+std::vector<std::wstring> ListSubdirectories(const std::wstring& dir)
+{
+    std::vector<std::wstring> out;
+    if (dir.empty())
+        return out;
+    WIN32_FIND_DATAW fd = {};
+    HANDLE h = FindFirstFileW(PathJoin(dir, L"*").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE)
+        return out;
+    do {
+        if (!(fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
+            continue;
+        if (!IsUsableFolderEntry(fd.cFileName))
+            continue;
+        out.push_back(PathJoin(dir, fd.cFileName));
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    return out;
+}
+
+std::vector<std::wstring> ListFilesInDirectory(const std::wstring& dir)
+{
+    std::vector<std::wstring> out;
+    if (dir.empty())
+        return out;
+    WIN32_FIND_DATAW fd = {};
+    HANDLE h = FindFirstFileW(PathJoin(dir, L"*").c_str(), &fd);
+    if (h == INVALID_HANDLE_VALUE)
+        return out;
+    do {
+        if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            continue;
+        if (!IsUsableFolderEntry(fd.cFileName))
+            continue;
+        out.push_back(PathJoin(dir, fd.cFileName));
+    } while (FindNextFileW(h, &fd));
+    FindClose(h);
+    return out;
+}
+
+std::wstring PickDesktopFolder(int depth)
+{
+    const std::wstring desktop = GetDesktopPath();
+    if (desktop.empty())
+        return {};
+    if (depth < 1)
+        depth = 1;
+
+    std::wstring dir = desktop;
+    for (int level = 0; level < depth; ++level) {
+        std::vector<std::wstring> subs = ListSubdirectories(dir);
+        if (depth == 1) {
+            if (subs.empty())
+                break;
+            dir = subs[RandomInt(0, static_cast<int>(subs.size()) - 1)];
+            continue;
+        }
+        std::wstring next;
+        const bool wantExisting = subs.empty() || RandomInt(0, 1) == 0;
+        if (wantExisting && !subs.empty()) {
+            next = subs[RandomInt(0, static_cast<int>(subs.size()) - 1)];
+        } else {
+            static const wchar_t* kNewNames[] = {
+                L"документы", L"старое",    L"архив",   L"бэкап",     L"разное",
+                L"ненужное",  L"проекты",   L"фото",    L"новая папка", L"old_stuff",
+                L"backup",    L"misc",      L"stuff",   L"очередное",
+            };
+            next = PathJoin(dir, kNewNames[RandomInt(0, static_cast<int>(std::size(kNewNames)) - 1)]);
+            if (!CreateDirectoryW(next.c_str(), nullptr) && GetLastError() != ERROR_ALREADY_EXISTS) {
+                if (!subs.empty())
+                    next = subs[RandomInt(0, static_cast<int>(subs.size()) - 1)];
+                else
+                    break;
+            }
+        }
+        dir = next;
+    }
+    return dir;
+}
+
+std::wstring UniquePathInFolder(const std::wstring& dir, const std::wstring& fileName)
+{
+    std::wstring candidate = PathJoin(dir, fileName);
+    if (!FileExists(candidate))
+        return candidate;
+
+    size_t dot = fileName.find_last_of(L'.');
+    const size_t slash = fileName.find_last_of(L"\\/");
+    if (slash != std::wstring::npos && (dot == std::wstring::npos || dot < slash))
+        dot = std::wstring::npos;
+    const std::wstring base = dot == std::wstring::npos ? fileName : fileName.substr(0, dot);
+    const std::wstring ext = dot == std::wstring::npos ? L"" : fileName.substr(dot);
+
+    for (int i = 2; i < 1000; ++i) {
+        const std::wstring name =
+            base + L" (" + std::to_wstring(i) + L")" + ext;
+        candidate = PathJoin(dir, name);
+        if (!FileExists(candidate))
+            return candidate;
+    }
+    return PathJoin(dir, fileName);
+}
+
+bool IsFileOpenByOtherProcess(const std::wstring& path)
+{
+    if (path.empty())
+        return false;
+    HANDLE h = CreateFileW(path.c_str(), GENERIC_READ, 0, nullptr, OPEN_EXISTING,
+                           FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) {
+        const DWORD err = GetLastError();
+        return err == ERROR_SHARING_VIOLATION || err == ERROR_LOCK_VIOLATION;
+    }
+    CloseHandle(h);
+    return false;
+}
+
+namespace {
+
+struct TitleSearchData {
+    std::wstring needleLower;
+    DWORD selfPid = 0;
+    bool found = false;
+};
+
+struct TitleCloseData {
+    std::wstring needleLower;
+    DWORD selfPid = 0;
+    int closed = 0;
+};
+
+bool TitleContainsNeedle(const std::wstring& titleLower, const std::wstring& needleLower)
+{
+    return !needleLower.empty() && titleLower.find(needleLower) != std::wstring::npos;
+}
+
+BOOL CALLBACK FindTitleProc(HWND hwnd, LPARAM lp)
+{
+    auto* s = reinterpret_cast<TitleSearchData*>(lp);
+    if (!IsWindowVisible(hwnd))
+        return TRUE;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid == s->selfPid)
+        return TRUE;
+    wchar_t title[512] = {};
+    const int n = GetWindowTextW(hwnd, title, 512);
+    if (n <= 0)
+        return TRUE;
+    if (TitleContainsNeedle(LowercaseCopy(std::wstring(title, static_cast<size_t>(n))),
+                            s->needleLower)) {
+        s->found = true;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+BOOL CALLBACK CloseEditorTitleProc(HWND hwnd, LPARAM lp)
+{
+    auto* s = reinterpret_cast<TitleCloseData*>(lp);
+    if (!IsWindowVisible(hwnd))
+        return TRUE;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(hwnd, &pid);
+    if (pid == s->selfPid)
+        return TRUE;
+    wchar_t cls[128] = {};
+    GetClassNameW(hwnd, cls, 128);
+    const bool editor = wcscmp(cls, L"Notepad") == 0 || wcscmp(cls, L"WordPadClass") == 0 ||
+                        wcscmp(cls, L"OpusApp") == 0 || wcscmp(cls, L"XLMAIN") == 0;
+    if (!editor)
+        return TRUE;
+    wchar_t title[512] = {};
+    const int n = GetWindowTextW(hwnd, title, 512);
+    if (n <= 0)
+        return TRUE;
+    if (TitleContainsNeedle(LowercaseCopy(std::wstring(title, static_cast<size_t>(n))),
+                            s->needleLower)) {
+        PostMessageW(hwnd, WM_CLOSE, 0, 0);
+        s->closed += 1;
+    }
+    return TRUE;
+}
+
+} /* namespace */
+
+bool WindowTitleContains(const std::wstring& needle)
+{
+    if (needle.empty())
+        return false;
+    TitleSearchData data;
+    data.needleLower = LowercaseCopy(needle);
+    data.selfPid = GetCurrentProcessId();
+    EnumWindows(FindTitleProc, reinterpret_cast<LPARAM>(&data));
+    return data.found;
+}
+
+int CloseEditorWindowsTitled(const std::wstring& needle)
+{
+    if (needle.empty())
+        return 0;
+    TitleCloseData data;
+    data.needleLower = LowercaseCopy(needle);
+    data.selfPid = GetCurrentProcessId();
+    EnumWindows(CloseEditorTitleProc, reinterpret_cast<LPARAM>(&data));
+    return data.closed;
 }
 
 } /* namespace six_seven */

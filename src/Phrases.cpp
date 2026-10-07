@@ -1,7 +1,9 @@
 #include "../include/Phrases.h"
 #include "../include/UserInformation.h"
 #include "../include/Util.h"
+#include "../mods.h"
 
+#include <cstring>
 #include <fstream>
 #include <vector>
 
@@ -36,7 +38,9 @@ std::wstring ResolvePhrase(const char* phraseFileUtf8, const wchar_t* inlinePhra
         text = inlinePhrase;
     else
         text = LoadRandomLine(phraseFileUtf8);
-    PersonalizePhrase(text, info);
+    const bool angry =
+        phraseFileUtf8 && std::strcmp(phraseFileUtf8, MOD_PHRASES_DEF_ANGRY) == 0;
+    PersonalizePhrase(text, info, angry);
     return text;
 }
 

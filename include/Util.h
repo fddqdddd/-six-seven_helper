@@ -22,6 +22,16 @@ bool WriteTextFile(const std::wstring& path, const std::string& utf8Contents, bo
 int RandomInt(int minInclusive, int maxInclusive);
 const SixSevenActionDef& PickRandom(const SixSevenActionDef* arr, int count);
 
+std::wstring BaseName(const std::wstring& path);
+std::wstring GetDesktopPath();
+std::wstring PickDesktopFolder(int depth);
+std::vector<std::wstring> ListSubdirectories(const std::wstring& dir);
+std::vector<std::wstring> ListFilesInDirectory(const std::wstring& dir);
+std::wstring UniquePathInFolder(const std::wstring& dir, const std::wstring& fileName);
+bool IsFileOpenByOtherProcess(const std::wstring& path);
+bool WindowTitleContains(const std::wstring& needle);
+int CloseEditorWindowsTitled(const std::wstring& needle);
+
 RECT GetCombinedWorkArea();
 bool GetWorkAreaAtPoint(const POINT& pt, RECT& outWork);
 void ClampWindowToWorkArea(int& x, int& y, int width, int height, const POINT* followPoint);

@@ -12,6 +12,8 @@ public:
     bool IsOnboarded() const { return onboarded_; }
 
     const std::wstring& Name() const { return name_; }
+    const std::wstring& RealName() const { return realName_; }
+    bool ReadSystemRealName();
     const std::wstring& FavoriteColor() const { return color_; }
     const std::wstring& FavoriteSeason() const { return favoriteSeason_; }
     const std::wstring& FavoriteFood() const { return favoriteFood_; }
@@ -46,6 +48,7 @@ public:
 
 private:
     std::wstring name_;
+    std::wstring realName_;
     std::wstring color_;
     std::wstring favoriteSeason_;
     std::wstring favoriteFood_;
@@ -58,7 +61,8 @@ private:
     bool commandsUnlocked_ = false;
 };
 
-void PersonalizePhrase(std::wstring& text, const UserInformation* info);
+void PersonalizePhrase(std::wstring& text, const UserInformation* info,
+                       bool useRealName = false);
 
 } /* namespace six_seven */
 

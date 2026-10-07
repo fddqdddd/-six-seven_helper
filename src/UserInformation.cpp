@@ -2,6 +2,10 @@
 #include "../include/Util.h"
 #include "../config.h"
 
+#ifndef SECURITY_WIN32
+#define SECURITY_WIN32
+#endif
+#include <secext.h>
 #include <windows.h>
 
 #include <algorithm>
@@ -32,6 +36,7 @@ void UserInformation::Load()
 {
     name_.clear();
     color_.clear();
+    realName_.clear();
     onboarded_ = false;
 
     const std::wstring path = PathJoin(GetExeDirectory(), kInfoFileName);
@@ -39,6 +44,9 @@ void UserInformation::Load()
 
     GetPrivateProfileStringW(L"user", L"name", L"", buf, 256, path.c_str());
     name_ = buf;
+
+    GetPrivateProfileStringW(L"user", L"real_name", L"", buf, 256, path.c_str());
+    realName_ = buf;
 
     GetPrivateProfileStringW(L"user", L"color", L"", buf, 256, path.c_str());
     color_ = buf;
@@ -67,6 +75,7 @@ void UserInformation::Save() const
 {
     const std::wstring path = PathJoin(GetExeDirectory(), kInfoFileName);
     WritePrivateProfileStringW(L"user", L"name", name_.c_str(), path.c_str());
+    WritePrivateProfileStringW(L"user", L"real_name", realName_.c_str(), path.c_str());
     WritePrivateProfileStringW(L"user", L"color", color_.c_str(), path.c_str());
     WritePrivateProfileStringW(L"user", L"season", favoriteSeason_.c_str(), path.c_str());
     WritePrivateProfileStringW(L"user", L"food", favoriteFood_.c_str(), path.c_str());
@@ -102,6 +111,38 @@ void UserInformation::ResetOnboarding()
     birthdayDay_ = 0;
     birthdayYear_ = 0;
     onboarded_ = false;
+}
+
+namespace {
+
+bool IsJunkAccountName(const std::wstring& name)
+{
+    if (name.empty() || name == L"67")
+        return true;
+    return _wcsicmp(name.c_str(), L"six_seven") == 0;
+}
+
+} /* namespace */
+
+bool UserInformation::ReadSystemRealName()
+{
+    wchar_t buf[256] = {};
+    ULONG size = static_cast<ULONG>(std::size(buf));
+    std::wstring got;
+    if (GetUserNameExW(NameDisplay, buf, &size) && buf[0])
+        got = buf;
+    if (IsJunkAccountName(got)) {
+        DWORD cb = sizeof(buf);
+        buf[0] = L'\0';
+        if (RegGetValueW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+                         L"RegisteredOwner", RRF_RT_REG_SZ, nullptr, buf, &cb) == ERROR_SUCCESS &&
+            buf[0])
+            got = buf;
+    }
+    if (IsJunkAccountName(got))
+        return false;
+    realName_ = got;
+    return true;
 }
 
 bool UserInformation::IsDateToday(int month, int day)
@@ -282,11 +323,13 @@ std::wstring UserInformation::ColorAssociations(const std::wstring& color)
     return L"что-то особенное";
 }
 
-void PersonalizePhrase(std::wstring& text, const UserInformation* info)
+void PersonalizePhrase(std::wstring& text, const UserInformation* info, bool useRealName)
 {
     if (!info || !info->IsOnboarded())
         return;
     std::wstring name = info->Name();
+    if (useRealName && !info->RealName().empty())
+        name = info->RealName();
     if (name.empty())
         name = SIX_SEVEN_NICKNAME;
     ReplaceToken(text, L"friend", name);

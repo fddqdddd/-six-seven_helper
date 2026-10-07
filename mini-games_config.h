@@ -140,25 +140,31 @@
 #define MINIGAME_HIDE_MENU_LABEL          L"Прятки"
 #define MINIGAME_HIDE_RECORDS_LABEL       L"Прятки"
 
-#define MINIGAME_HIDE_TIME_SEC            45  /* обычный режим, сек */
-#define MINIGAME_HIDE_HARD_TIME_SEC       30  /* hard-mode, сек */
-#define MINIGAME_HIDE_MOVE_INTERVAL_MS    2600 /* пауза между прыжками */
-#define MINIGAME_HIDE_HARD_MOVE_MS        1200 /* hard-mode: прячется быстрее */
+#define MINIGAME_HIDE_TIME_SEC            60   /* обычный режим, сек */
+#define MINIGAME_HIDE_HARD_TIME_SEC       120  /* hard-mode, сек */
 
-#define MINIGAME_HIDE_NAME_BAND_H         26  /* полоса с именем файла */
+#define MINIGAME_HIDE_COUNTDOWN_DELAY_MS  1000 /* чёрный экран перед «3» */
+#define MINIGAME_HIDE_COUNTDOWN_STEP_MS   1000 /* 3 → 2 → 1 */
+#define MINIGAME_HIDE_FOUND_PAUSE_MS      3500 /* 67 показывается после находки */
+#define MINIGAME_HIDE_POLL_MS             400  /* период проверки файла */
+#define MINIGAME_HIDE_LOCK_HITS           2    /* подряд «файл открыт» до находки */
+#define MINIGAME_HIDE_DELETE_ATTEMPTS     60   /* попыток удалить файл-приманку */
+#define MINIGAME_HIDE_HARD_DEPTH_MIN      2    /* hard: уровней вложенности */
+#define MINIGAME_HIDE_HARD_DEPTH_MAX      5
 
 #define MINIGAME_HIDE_PRESTART_TITLE      L"Прятки"
 #define MINIGAME_HIDE_PRESTART_TEXT \
-    L"67 превратилась в иконку-файл и спряталась где-то на экране!\r\n" \
-    L"Найди её и кликни по файлу. Чем больше найдёшь — тем лучше."
+    L"67 прячется: экран погаснет, пойдёт отсчёт 3-2-1,\r\n" \
+    L"потом ищи файл-приманку в папках рабочего стола и открой его.\r\n" \
+    L"Найдёшь — 67 покажется. Больше находок — лучше."
 
 #define MINIGAME_HIDE_HARD_CHECK_LABEL \
-    L"Глубины пряток (быстрее меняет место, файлы в папках)"
+    L"Hard-mode (файл до 5 уровней глубже, 120 сек)"
 
 #define MINIGAME_HIDE_END_TITLE           L"Прятки — результат"
 #define MINIGAME_HIDE_END_TEXT \
     L"Время вышло! 67 успела спрятаться хорошо."
 
-#define MINIGAME_HIDE_FOUND_TEXT          L"Нашёл!"
+#define MINIGAME_HIDE_FOUND_TEXT          L"Ты меня нашёл!"
 
 #endif /* SIX_SEVEN_MINI_GAMES_CONFIG_H */

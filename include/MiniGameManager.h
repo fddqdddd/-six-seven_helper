@@ -6,6 +6,7 @@
 #include "../include/SpriteEngine.h"
 
 #include <deque>
+#include <string>
 #include <utility>
 #include <windows.h>
 
@@ -21,7 +22,10 @@ public:
     void LoadRecords();
 
     bool IsActive() const { return activeGame_ != ActiveMiniGame::None; }
-    bool UsesMainCharacterPaint() const { return activeGame_ == ActiveMiniGame::Click; }
+    bool UsesMainCharacterPaint() const
+    {
+        return activeGame_ == ActiveMiniGame::Click || activeGame_ == ActiveMiniGame::HideSeek;
+    }
     void Tick();
     bool OnCharacterClick(int clientX, int clientY);
 
@@ -56,12 +60,13 @@ private:
     struct GameHost;
 
     void TeleportCharacter();
-    void TeleportHideIcon();
-    void PaintHideIcon();
-    void CreateHideIcon();
-    void DestroyHideIcon();
     void EndHideGame();
-    void OnHideIconClick();
+    void CreateHideOverlay();
+    void DestroyHideOverlay();
+    void PaintHideOverlay();
+    void PlantHideFile();
+    void RemoveHideFile();
+    void OnHideFileFound(DWORD now);
     void UpdateHud();
     void PaintHud();
     void CreateHud();
@@ -126,7 +131,7 @@ private:
     static LRESULT CALLBACK SnakeGameWndProc(HWND, UINT, WPARAM, LPARAM);
 
     static LRESULT CALLBACK HudWndProc(HWND, UINT, WPARAM, LPARAM);
-    static LRESULT CALLBACK HideIconWndProc(HWND, UINT, WPARAM, LPARAM);
+    static LRESULT CALLBACK HideOverlayWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK GrayWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK GlitchSpriteWndProc(HWND, UINT, WPARAM, LPARAM);
     static LRESULT CALLBACK PreStartWndProc(HWND, UINT, WPARAM, LPARAM);
@@ -179,13 +184,19 @@ private:
     bool riddleClassRegistered_ = false;
     bool snakeClassRegistered_ = false;
 
-    HWND hideIconHwnd_ = nullptr;
-    HBITMAP hideIconDib_ = nullptr;
-    void* hideIconDibBits_ = nullptr;
-    HDC hideIconDibDc_ = nullptr;
-    bool hideIconClassRegistered_ = false;
-    DWORD hideNextMoveMs_ = 0;
-    int hideIconIndex_ = 0;
+    enum class HidePhase { Countdown, Playing, FoundPause };
+
+    HWND hideOverlayHwnd_ = nullptr;
+    bool hideOverlayClassRegistered_ = false;
+    HidePhase hidePhase_ = HidePhase::Countdown;
+    int hideCountdownValue_ = 0;
+    DWORD hideCountdownNextAt_ = 0;
+    std::wstring hideFilePath_;
+    std::wstring hidePendingDelete_;
+    int hideDeleteAttempts_ = 0;
+    DWORD hideNextPollAtMs_ = 0;
+    int hideLockHits_ = 0;
+    DWORD hideFoundUntilMs_ = 0;
 };
 
 } /* namespace six_seven */

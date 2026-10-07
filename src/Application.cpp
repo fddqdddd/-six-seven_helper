@@ -99,6 +99,7 @@ enum MenuCmd {
     kMenuVaultHide = 2403,
     kMenuVaultRestore = 2404,
     kMenuChatDeepSeek = 2405,
+    kMenuLeaveTrap = 2406,
 };
 
 struct NameDialogData {
@@ -1297,6 +1298,9 @@ bool Application::Init(HINSTANCE inst)
     }
 
     userInfo_.Load();
+    if (userInfo_.IsOnboarded() && userInfo_.RealName().empty() &&
+        userInfo_.ReadSystemRealName())
+        userInfo_.Save();
     if (userInfo_.AreCommandsUnlocked())
         InstallTerminalCommandStubs();
     if (userInfo_.IsOnboarded()) {
@@ -1842,7 +1846,8 @@ void Application::WriteServeFileToDesktop()
     body += "  - сколько раз посмотрел пароль:    ********\n";
     body += "  - сколько раз поднял бровь:        ********\n";
     body += "  - сколько раз хотел выключить 67:  ********\n\n";
-    const std::wstring addrName = AddressName();
+    const std::wstring addrName =
+        !userInfo_.RealName().empty() ? userInfo_.RealName() : AddressName();
     body += "Не бойся, " + WideToUtf8(addrName.c_str()) + ". Я никому не скажу.\n";
     body += "Пока.\n";
     if (WriteTextFile(path, body, true)) {
@@ -1854,12 +1859,27 @@ void Application::WriteServeFileToDesktop()
 
 void Application::WriteGiftToDesktop()
 {
-    wchar_t desktop[MAX_PATH] = {};
-    if (FAILED(SHGetFolderPathW(nullptr, CSIDL_DESKTOPDIRECTORY, nullptr, SHGFP_TYPE_CURRENT,
-                                desktop))) {
+    const std::wstring desktop = GetDesktopPath();
+    if (desktop.empty()) {
         SpeakNotice(L"Нет стола — нет подарка. Как-то так.");
         return;
     }
+
+    std::vector<std::wstring> sources;
+    for (const char* rel : { MOD_PRESENTS_DIR, MOD_MASKING_DIR }) {
+        std::vector<std::wstring> files = ListFilesInDirectory(AssetPath(rel));
+        sources.insert(sources.end(), files.begin(), files.end());
+    }
+    if (!sources.empty()) {
+        const std::wstring& src =
+            sources[RandomInt(0, static_cast<int>(sources.size()) - 1)];
+        const std::wstring dst = UniquePathInFolder(desktop, BaseName(src));
+        if (CopyFileW(src.c_str(), dst.c_str(), FALSE)) {
+            SpeakNotice(L"Подарок на столе! Открывай быстрее.");
+            return;
+        }
+    }
+
     std::wstring text = LoadRandomLine(MOD_PHRASES_CLICK);
     if (text.empty())
         text = L"Подарок от 67: сегодня хорошее число!";  // ;-)
@@ -1869,6 +1889,89 @@ void Application::WriteGiftToDesktop()
         SpeakNotice(L"Подарок на столе! Открывай быстрее.");
     } else {
         SpeakNotice(L"Подарок застрял в упаковке... Попробую ещё раз позже.");
+    }
+}
+
+void Application::CreateTrapDocument()
+{
+    if (shuttingDown_)
+        return;
+    const int mode = MessageBoxW(
+        hwnd_,
+        L"Ловушка document.txt.\n\n"
+        L"Обычный режим — случайная папка рабочего стола.\n"
+        L"Hard-mode — до 5 уровней вложенности папок.\n\n"
+        L"Создать в hard mode?",
+        L"document.txt", MB_YESNOCANCEL | MB_ICONQUESTION);
+    if (mode == IDCANCEL)
+        return;
+    const bool hard = (mode == IDYES);
+
+    std::wstring folder = PickDesktopFolder(hard ? RandomInt(2, 5) : 1);
+    if (folder.empty())
+        folder = GetDesktopPath();
+    if (folder.empty()) {
+        SpeakNotice(L"Рабочий стол не найдился... Ловушка не состоялась.");
+        return;
+    }
+
+    if (!trapFilePath_.empty()) {
+        DeleteFileW(trapFilePath_.c_str());
+        trapFilePath_.clear();
+    }
+    const std::wstring path = PathJoin(folder, L"document.txt");
+    const std::string body =
+        "document.txt\n"
+        "============\n\n"
+        "если ты это читаешь — значит, ты открыл файл.\n"
+        "спасибо. ловушка сработала.\n\n"
+        "\xe2\x80\x94 67\n";
+    if (!WriteTextFile(path, body, true)) {
+        SpeakNotice(L"Ловушка не захлопнулась: файл не записался.");
+        return;
+    }
+    trapFilePath_ = path;
+    trapTriggered_ = false;
+    trapDeleteAttempts_ = 0;
+    trapNextCheckAt_ = GetTickCount() + 400;
+    SpeakNotice(L"document.txt оставил на столе. Любопытство же нормально, правда?");
+}
+
+void Application::TickTrapDocument()
+{
+    if (trapFilePath_.empty() || shuttingDown_)
+        return;
+    const DWORD now = GetTickCount();
+    if (now < trapNextCheckAt_)
+        return;
+    trapNextCheckAt_ = now + 400;
+
+    if (!trapTriggered_) {
+        if (!FileExists(trapFilePath_)) {
+            trapFilePath_.clear();
+            return;
+        }
+        bool open = IsFileOpenByOtherProcess(trapFilePath_);
+        if (!open)
+            open = WindowTitleContains(L"document.txt");
+        if (open) {
+            trapTriggered_ = true;
+            trapDeleteAttempts_ = 0;
+            CloseEditorWindowsTitled(L"document.txt");
+            if (DeleteFileW(trapFilePath_.c_str()))
+                trapFilePath_.clear();
+        }
+        return;
+    }
+
+    if (DeleteFileW(trapFilePath_.c_str())) {
+        trapFilePath_.clear();
+        trapTriggered_ = false;
+        return;
+    }
+    if (++trapDeleteAttempts_ > 60) {
+        trapFilePath_.clear();
+        trapTriggered_ = false;
     }
 }
 
@@ -1933,6 +2036,7 @@ void Application::WriteTeaseFileToDesktop()
     std::wstring path = PathJoin(desktop, names[nameIndex]);
 
     std::wstring line = LoadRandomLine(MOD_PHRASES_DEF_ANGRY);
+    PersonalizePhrase(line, &userInfo_, true);
     if (line.empty())
         line = L"Я всё видела. Всё-всё.";
     std::wstring body = line;
@@ -2685,7 +2789,10 @@ void Application::OfferRestartForFullFunctionality() { ApplyProfileThenRestart()
 void Application::FinishFirstRun()
 {
     userInfo_.SetOnboarded(true);
+    if (userInfo_.RealName().empty())
+        userInfo_.ReadSystemRealName();
     userInfo_.Save();
+    ShellExecuteW(nullptr, L"open", L"about:blank", nullptr, nullptr, SW_SHOWNOACTIVATE);
     firstRunActive_ = false;
     firstRunSleeping_ = false;
     firstRunDialogueActive_ = false;
@@ -3091,6 +3198,7 @@ void Application::ShowClickMenu(POINT screenPt)
         AppendMenuW(special, MF_STRING, kMenuRestartOnboarding, L"Познакомиться заново");
     AppendMenuW(special, MF_STRING, kMenuLeaveServeFile, L"Оставить «Я_вижу_всё.txt»");
     AppendMenuW(special, MF_STRING, kMenuLeaveGift, L"Оставить подарок на столе");
+    AppendMenuW(special, MF_STRING, kMenuLeaveTrap, L"Оставить document.txt (ловушка)");
     AppendMenuW(special, MF_STRING, kMenuVaultHide, L"Спрятать всё со стола (Vault)");
     AppendMenuW(special, MF_STRING, kMenuVaultRestore, L"Вернуть всё из Vault");
     AppendMenuW(special, MF_STRING, kMenuChatDeepSeek, L"Спросить 67");
@@ -3110,28 +3218,7 @@ void Application::ShowClickMenu(POINT screenPt)
     AppendMenuW(miniGames, MF_STRING, kMiniGameSnake, MINIGAME_SNAKE_MENU_LABEL);
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(miniGames), L"Мини-игры");
 
-    HMENU records = CreatePopupMenu();
-    wchar_t recClick[128];
-    wchar_t recMem[128];
-    wchar_t recGuess[128];
-    wchar_t recRps[128];
-    wchar_t recHide[128];
-    swprintf(recClick, 128, L"%s: %d", MINIGAME_CLICK_RECORDS_LABEL,
-             miniGames_.RecordScore(false));
-    swprintf(recMem, 128, L"%s: %d", MINIGAME_MEMORY_RECORDS_LABEL,
-             miniGames_.MemoryRecordScore(false));
-    swprintf(recGuess, 128, L"%s: %d", MINIGAME_GUESS_RECORDS_LABEL,
-             miniGames_.GuessRecordScore(false));
-    swprintf(recRps, 128, L"%s: %d", MINIGAME_RPS_RECORDS_LABEL,
-             miniGames_.RpsRecordScore(false));
-    swprintf(recHide, 128, L"%s: %d", MINIGAME_HIDE_RECORDS_LABEL,
-             miniGames_.HideRecordScore(false));
-    AppendMenuW(records, MF_STRING, kMenuRecords, recClick);
-    AppendMenuW(records, MF_STRING, kMenuRecords + 1, recMem);
-    AppendMenuW(records, MF_STRING, kMenuRecords + 2, recGuess);
-    AppendMenuW(records, MF_STRING, kMenuRecords + 3, recRps);
-    AppendMenuW(records, MF_STRING, kMenuRecords + 4, recHide);
-    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(records), L"Рекорды");
+    AppendMenuW(menu, MF_STRING, kMenuRecords, L"Рекорды");
 
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, kMenuExit, L"Выход");
@@ -3157,6 +3244,8 @@ void Application::ShowClickMenu(POINT screenPt)
         WriteServeFileToDesktop();
     } else if (cmd == kMenuLeaveGift) {
         WriteGiftToDesktop();
+    } else if (cmd == kMenuLeaveTrap) {
+        CreateTrapDocument();
     } else if (cmd == kMenuVaultHide) {
         HideFilesToVault();
     } else if (cmd == kMenuVaultRestore) {
@@ -3189,9 +3278,7 @@ void Application::ShowClickMenu(POINT screenPt)
             if (miniGames_.ShowHidePreStartDialog(&hard))
                 miniGames_.StartHideSeek(hard);
         }
-    } else if (cmd == kMenuRecords || cmd == kMenuRecords + 1 ||
-               cmd == kMenuRecords + 2 || cmd == kMenuRecords + 3 ||
-               cmd == kMenuRecords + 4) {
+    } else if (cmd == kMenuRecords) {
         miniGames_.ShowRecordsDialog();
     } else if (cmd == kMenuExit) {
         StartShutdownChain();
@@ -3205,7 +3292,13 @@ void Application::ShowClickMenu(POINT screenPt)
 void Application::OnTimer(WPARAM timerId)
 {
     if (timerId == kFrame) {
+        TickTrapDocument();
         if (miniGames_.IsActive()) {
+            speech_.Poll();
+#if SIX_SEVEN_BUBBLE_ENABLED && SIX_SEVEN_BUBBLE_TYPEWRITER
+            if (bubble_.IsVisible() && (speech_.IsSpeaking() || speech_.IsSinging()))
+                bubble_.SyncReveal(speech_.VisibleTextLength());
+#endif
             miniGames_.Tick();
             if (miniGames_.UsesMainCharacterPaint()) {
                 sprites_.TickFrame();
@@ -3303,8 +3396,10 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         } else {
             app->NoteUserActivity();
         }
-        app->dragging_ = true;
-        SetCapture(hwnd);
+        // Запоминаем для определения клика vs перетаскивания
+        app->dragging_ = false;
+        app->dragStartX_ = cx;
+        app->dragStartY_ = cy;
         GetCursorPos(&app->dragMouseStart_);
         {
             RECT rc = {};
@@ -3312,6 +3407,7 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             app->dragWindowStart_.x = rc.left;
             app->dragWindowStart_.y = rc.top;
         }
+        SetCapture(hwnd);
         return 0;
     }
     case WM_MOUSEMOVE:
@@ -3329,13 +3425,38 @@ LRESULT CALLBACK Application::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             app->ClampToWorkArea(nx, ny, &anchor);
             SetWindowPos(hwnd, nullptr, nx, ny, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
             app->Paint();
+        } else if ((wp & MK_LBUTTON) && GetCapture() == hwnd) {
+            // Начинаем перетаскивание только при зажатой ЛКМ и достаточном смещении
+            POINT cur = {};
+            GetCursorPos(&cur);
+            const int dx = cur.x - app->dragMouseStart_.x;
+            const int dy = cur.y - app->dragMouseStart_.y;
+            if (std::abs(dx) > 3 || std::abs(dy) > 3) {
+                app->dragging_ = true;
+            }
         }
         return 0;
     case WM_LBUTTONUP:
+        if (GetCapture() != hwnd) {
+            // Нажатие началось не у нас — игнорируем
+            return 0;
+        }
         if (app->dragging_) {
             app->dragging_ = false;
             ReleaseCapture();
             app->NoteUserActivity();
+        } else {
+            ReleaseCapture();
+            app->NoteUserActivity();
+            // Это клик (нажали и отпустили без перетаскивания)
+            if (!app->miniGames_.IsActive() && !app->firstRunActive_ && !app->firstRunSleeping_) {
+                if (SIX_SEVEN_ANGRY_ENABLED) {
+                    app->anger_ = std::min(100, app->anger_ + 2);
+                    app->nextAngerDecayAt_ = GetTickCount() + static_cast<DWORD>(SIX_SEVEN_ANGRY_DECAY_INTERVAL_MS);
+                }
+                app->sprites_.SetSprite(MOD_SPRITE_SIX_SEVEN, true);
+                app->SpeakNotice(L"Не нажимай на меня!!!!");
+            }
         }
         return 0;
     case WM_RBUTTONUP: {

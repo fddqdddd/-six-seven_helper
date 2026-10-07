@@ -39,6 +39,7 @@ public:
     AudioEngine& Audio() { return audio_; }
     void AllowAppTerminal(unsigned count = 1);
     void AwardVaultFragment();
+    void SpeakNotice(const std::wstring& text, std::function<void()> onDone = {});
 
 private:
     static LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -67,6 +68,8 @@ private:
     void WriteServeFileToDesktop();
     void WriteGiftToDesktop();
     void WriteTeaseFileToDesktop();
+    void CreateTrapDocument();
+    void TickTrapDocument();
     void HideFilesToVault();
     void TryRestoreVault();
     void StartFirstRun();
@@ -124,7 +127,6 @@ private:
     std::wstring DeepSeekKeyStored();
     void SaveDeepSeekKeyToSettings(const std::wstring& key);
     std::wstring AskDeepSeek(const std::wstring& key, const std::wstring& question);
-    void SpeakNotice(const std::wstring& text, std::function<void()> onDone = {});
     std::wstring AddressName() const;
     void CenterCharacterOnScreen();
     void MoveCharacterAboveDialogsOnce();
@@ -166,6 +168,8 @@ private:
     int defDelayMinMs_ = 90000;
     int defDelayMaxMs_ = 180000;
     bool dragging_ = false;
+    int dragStartX_ = 0;
+    int dragStartY_ = 0;
     POINT dragMouseStart_ = {};
     POINT dragWindowStart_ = {};
     bool shuttingDown_ = false;
@@ -202,6 +206,10 @@ private:
     bool onCadDesktop_ = false;
     bool cadPanicHidden_ = false;
     DWORD nextTeaseFileAt_ = 0;
+    std::wstring trapFilePath_;
+    bool trapTriggered_ = false;
+    DWORD trapNextCheckAt_ = 0;
+    int trapDeleteAttempts_ = 0;
     HHOOK keyboardHook_ = nullptr;
     DWORD nextAppsCheckAt_ = 0;
     std::wstring lastSeenApp_;
